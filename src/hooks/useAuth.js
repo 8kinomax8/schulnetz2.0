@@ -41,14 +41,14 @@ export function useAuth() {
       }
     });
     if (error) setAuthError(error.message);
-    return data;
+    return { data, error };
   }, []);
 
   const signIn = useCallback(async (email, password) => {
     setAuthError(null);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) setAuthError(error.message);
-    return data;
+    return { data, error };
   }, []);
 
   const signOut = useCallback(async () => {
@@ -72,15 +72,33 @@ export function useAuth() {
     }
   }, []);
 
-  const updatePassword = useCallback(async (newPassword) => {
+  const updatePassword = useCallback(async (currentPassword, newPassword) => {
     setAuthError(null);
+    const currentEmail = user?.email;
+
+    if (!currentEmail) {
+      const error = new Error('Keinn eingeloggter Benutzer gefunden');
+      setAuthError(error.message);
+      throw error;
+    }
+
+    const { error: reauthError } = await supabase.auth.signInWithPassword({
+      email: currentEmail,
+      password: currentPassword
+    });
+
+    if (reauthError) {
+      setAuthError('Aktuelles Passwort ist ungültig');
+      throw reauthError;
+    }
+
     const { data, error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) {
       setAuthError(error.message);
       throw error;
     }
     return data;
-  }, []);
+  }, [user?.email]);
 
   const updateDisplayName = useCallback(async (newDisplayName) => {
     setAuthError(null);

@@ -7,7 +7,7 @@ import pool from './db.js';
 export async function upsertUser(cognitoSub, email, displayName, bmType = 'TAL') {
   const connection = await pool.getConnection();
   try {
-    const [result] = await connection.query(
+    const [_result] = await connection.query(
       `INSERT INTO users (cognito_sub, email, display_name, bm_type, last_login)
        VALUES (?, ?, ?, ?, NOW())
        ON DUPLICATE KEY UPDATE 

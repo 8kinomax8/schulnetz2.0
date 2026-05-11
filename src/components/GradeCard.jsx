@@ -3,16 +3,20 @@ import { Plus, Trash2 } from 'lucide-react';
 import { formatSwissDate } from '../utils';
 
 /**
- * Component to display and manage grades for a subject
+ * Component to display and manage grades for a subject.
  */
 export default function GradeCard({ 
   subject, 
+  title = subject,
   grades = [], 
   onAddGrade, 
   onRemoveGrade, 
   semesterAverage, 
-  targetGrade, 
-  requiredGrade 
+  exactAverage = null,
+  fixedWeight = null,
+  hideWeightInput = false,
+  containerClassName = '',
+  titleActions = null
 }) {
   const [newGrade, setNewGrade] = useState('');
   const [weight, setWeight] = useState('1');
@@ -20,31 +24,47 @@ export default function GradeCard({
   const [newName, setNewName] = useState('');
 
   const handleAdd = () => {
-    if (!newGrade || !weight) return;
+    if (!newGrade || (!hideWeightInput && !weight)) return;
+    const rawGrade = parseFloat(newGrade);
+    if (!Number.isFinite(rawGrade)) return;
+    const clampedGrade = Math.min(6, Math.max(1, rawGrade));
     // Format date to Swiss format if provided
     const formattedDate = newDate ? formatSwissDate(newDate) : null;
-    onAddGrade(subject, parseFloat(newGrade), weight, formattedDate, newName || null);
+    onAddGrade(subject, clampedGrade, fixedWeight ?? weight, formattedDate, newName || null);
     setNewGrade('');
     setWeight('1');
     setNewDate('');
     setNewName('');
   };
 
+  // eslint-disable-next-line no-unused-vars
   const totalWeight = grades.reduce((sum, g) => sum + g.weight, 0);
 
   return (
-    <div className="border-2 border-blue-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 overflow-hidden max-w-full">
+    <div className={`border-2 border-blue-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 overflow-hidden max-w-full ${containerClassName}`}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-800 text-sm truncate mr-2">{subject}</h3>
-        {semesterAverage && (
+        <div className="flex items-center gap-2 min-w-0 mr-2">
+          <h3 className="font-semibold text-gray-800 text-sm truncate">{title}</h3>
+          {titleActions && (
+            <div className="flex items-center gap-1 flex-shrink-0">
+              {titleActions}
+            </div>
+          )}
+        </div>
+        {Number.isFinite(semesterAverage) && (
           <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs text-gray-600">Avg:</span>
+            <span className="text-xs text-gray-600">Ø:</span>
             <span className={`font-bold text-lg ${
               semesterAverage >= 5.5 ? 'text-green-700' :
               semesterAverage >= 4.0 ? 'text-blue-700' :
               'text-red-700'
             }`}>
               {semesterAverage.toFixed(1)}
+              {Number.isFinite(exactAverage) && (
+                <span className="ml-1 text-xs font-semibold text-gray-500">
+                  ({exactAverage.toFixed(1)})
+                </span>
+              )}
             </span>
           </div>
         )}
@@ -52,9 +72,7 @@ export default function GradeCard({
 
       {grades.length > 0 && (
         <div className="mb-3 space-y-1">
-          <div className="text-xs text-gray-600 mb-1">
-            Grades ({grades.length}) - Σ weight: {totalWeight.toFixed(2)}
-          </div>
+
           <div className="overflow-x-auto -mx-1 px-1">
             {grades.map((g) => (
               <div
@@ -82,7 +100,7 @@ export default function GradeCard({
 
       <div className="border-t border-blue-200 pt-3">
         <label className="block text-xs text-gray-700 mb-2 font-semibold">
-          Add a grade
+          Note hinzufügen
         </label>
         <div className="flex flex-wrap gap-2">
           <input
@@ -90,17 +108,17 @@ export default function GradeCard({
             step="0.5"
             min="1"
             max="6"
-            placeholder="Grade"
+            placeholder="Note"
             value={newGrade}
             onChange={(e) => setNewGrade(e.target.value)}
             className="w-20 p-2 border border-gray-300 rounded text-sm"
           />
           <input
             type="text"
-            placeholder="×"
+            placeholder="Gewicht"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            className="w-10 p-2 border border-gray-300 rounded text-sm text-center"
+            className={`${hideWeightInput ? 'hidden' : 'w-10'} p-2 border border-gray-300 rounded text-sm text-center`}
           />
           <input
             type="text"
@@ -113,7 +131,7 @@ export default function GradeCard({
           />
           <input
             type="text"
-            placeholder="Theme"
+            placeholder="Thema"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             className="flex-1 min-w-16 p-2 border border-gray-300 rounded text-sm"

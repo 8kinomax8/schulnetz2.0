@@ -1,11 +1,11 @@
 import {
-  calculateWeightedAverage,
   calculateSemesterAverage,
   calculateErfahrungsnote,
   calculateRequiredGrade,
   simulateAverage,
   parseWeight,
-  calculatePromotionStatus
+  calculatePromotionStatus,
+  roundToHalfOrWhole
 } from '../services/calculationService';
 
 /**
@@ -14,10 +14,11 @@ import {
  * @param {Object} semesterGrades - Notes semestrielles
  * @param {Object} semesterSimulator - Simulateur de semestre
  * @param {Object} examSimulator - Simulateur d'examen
+ * @param {Object} finalExamGrades - Definitive final exam grades { subjectName: grade }
  * @param {string} bmType - Type de BM
  * @returns {Object} Fonctions de calcul
  */
-export const useGradeCalculations = (subjects, semesterGrades, semesterSimulator, examSimulator, bmType) => {
+export const useGradeCalculations = (subjects, semesterGrades, semesterSimulator, examSimulator, bmType, finalExamGrades = {}) => {
   
   // Calculations for current semester
   const getSemesterAverage = (subject) => {
@@ -42,6 +43,8 @@ export const useGradeCalculations = (subjects, semesterGrades, semesterSimulator
 
   // Calculations for final exams
   const getExamAverage = (subject) => {
+    // If a definitive final exam grade exists, use it directly
+    if (finalExamGrades && Number.isFinite(finalExamGrades[subject])) return finalExamGrades[subject];
     const erfahrungsnote = getErfahrungsnote(subject);
     const examGrade = examSimulator[subject];
     if (!erfahrungsnote || !examGrade) return null;
@@ -63,6 +66,12 @@ export const useGradeCalculations = (subjects, semesterGrades, semesterSimulator
     let totalWeight = 0;
     
     subjects.forEach(subject => {
+      // Prefer definitive final exam grade if available
+      if (finalExamGrades && Number.isFinite(finalExamGrades[subject])) {
+        totalWeightedSum += finalExamGrades[subject];
+        totalWeight += 1;
+        return;
+      }
       const examGrade = examSimulator[subject];
       if (examGrade) {
         const avg = getExamAverage(subject);
@@ -94,7 +103,7 @@ export const useGradeCalculations = (subjects, semesterGrades, semesterSimulator
     Object.keys(subjects).forEach(subject => {
       const simAvg = getSimulatedSemesterAverage(subject);
       if (simAvg) {
-        simulatedGrades[subject] = Math.round(simAvg * 2) / 2; // Round to half-point
+        simulatedGrades[subject] = roundToHalfOrWhole(simAvg);
       }
     });
 

@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks';
-import { Mail, Lock, Save, AlertCircle, CheckCircle, UserCircle } from 'lucide-react';
+import { Mail, Lock, Save, AlertCircle, CheckCircle, UserCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function AccountSettings({ user: propUser }) {
   const { user: authUser, updateEmail, updatePassword, updateDisplayName } = useAuth();
   const user = propUser || authUser;
-  
-  if (!user) return null;
+
   const [newDisplayName, setNewDisplayName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [displayNamePending, setDisplayNamePending] = useState(false);
   const [emailPending, setEmailPending] = useState(false);
   const [passwordPending, setPasswordPending] = useState(false);
@@ -20,6 +22,8 @@ export default function AccountSettings({ user: propUser }) {
   const [displayNameError, setDisplayNameError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+
+  if (!user) return null;
 
   const handleUpdateDisplayName = async (e) => {
     e.preventDefault();
@@ -34,7 +38,7 @@ export default function AccountSettings({ user: propUser }) {
       setNewDisplayName('');
       setTimeout(() => setDisplayNameSuccess(false), 5000);
     } catch (err) {
-      setDisplayNameError(err.message || 'Erreur lors de la mise à jour');
+      setDisplayNameError(err.message || 'Fehler bei der Aktualisierung');
     } finally {
       setDisplayNamePending(false);
     }
@@ -57,15 +61,15 @@ export default function AccountSettings({ user: propUser }) {
       setTimeout(() => setEmailSuccess(false), 8000);
     } catch (err) {
       console.error('Email update error:', err);
-      let errorMessage = err.message || 'Erreur lors de la mise à jour';
+      let errorMessage = err.message || 'Fehler bei der Aktualisierung';
       
       // Better error messages for common issues
       if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
-        errorMessage = 'Cet email est déjà utilisé par un autre compte';
+        errorMessage = 'Diese E-Mail wird bereits für ein anderes Konto verwendet';
       } else if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
-        errorMessage = 'Trop de tentatives. Veuillez attendre quelques minutes.';
+        errorMessage = 'Zu viele Versuche. Bitte warte ein paar Minuten.';
       } else if (err.status === 500 || errorMessage.includes('500')) {
-        errorMessage = 'Erreur serveur. Vérifiez que l\'email est valide et réessayez dans quelques minutes.';
+        errorMessage = 'Serverfehler. Bitte überprüfe, ob die E-Mail gültig ist, und versuche es später erneut.';
       }
       
       setEmailError(errorMessage);
@@ -76,12 +80,16 @@ export default function AccountSettings({ user: propUser }) {
 
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
+    if (!currentPassword) {
+      setPasswordError('Bitte gib dein aktuelles Passwort ein');
+      return;
+    }
     if (!newPassword || newPassword.length < 6) {
-      setPasswordError('Le mot de passe doit contenir au moins 6 caractères');
+      setPasswordError('Das Passwort muss mindestens 6 Zeichen lang sein');
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordError('Les mots de passe ne correspondent pas');
+      setPasswordError('Die Passwörter stimmen nicht überein');
       return;
     }
 
@@ -89,13 +97,14 @@ export default function AccountSettings({ user: propUser }) {
     setPasswordError('');
     setPasswordSuccess(false);
     try {
-      await updatePassword(newPassword);
+      await updatePassword(currentPassword, newPassword);
       setPasswordSuccess(true);
+      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => setPasswordSuccess(false), 5000);
     } catch (err) {
-      setPasswordError(err.message || 'Erreur lors de la mise à jour');
+      setPasswordError(err.message || 'Fehler bei der Aktualisierung');
     } finally {
       setPasswordPending(false);
     }
@@ -103,26 +112,27 @@ export default function AccountSettings({ user: propUser }) {
 
   return (
     <div className="max-w-2xl mx-auto mt-6 space-y-6">
-      {/* Changer le nom d'affichage */}
+
+      {/* Anzeigename ändern */}
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-indigo-100 rounded-lg">
             <UserCircle className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-semibold text-gray-900">Modifier le nom d'affichage</h3>
-            <p className="text-sm text-gray-500">Nom actuel : {user.user_metadata?.display_name || 'Non défini'}</p>
+            <h3 className="text-lg font-semibold text-gray-900">Anzeigename ändern</h3>
+            <p className="text-sm text-gray-500">Aktueller Name: {user.user_metadata?.display_name || 'Nicht definiert'}</p>
           </div>
         </div>
 
         <form onSubmit={handleUpdateDisplayName} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nouveau nom d'affichage
+              Neuer Anzeigename
             </label>
             <input
               type="text"
-              placeholder="Votre nom"
+              placeholder="Dein Name"
               value={newDisplayName}
               onChange={e => setNewDisplayName(e.target.value)}
               className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -139,7 +149,7 @@ export default function AccountSettings({ user: propUser }) {
           {displayNameSuccess && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
               <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-              <p className="text-sm text-green-700">Nom d'affichage mis à jour !</p>
+              <p className="text-sm text-green-700">Anzeigename aktualisiert!</p>
             </div>
           )}
 
@@ -153,33 +163,33 @@ export default function AccountSettings({ user: propUser }) {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Mettre à jour le nom
+                Name aktualisieren
               </>
             )}
           </button>
         </form>
       </div>
 
-      {/* Changer l'email */}
+      {/* E-Mail-Adresse ändern */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-indigo-100 rounded-lg">
             <Mail className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-semibold text-gray-900">Modifier l'adresse email</h3>
-            <p className="text-sm text-gray-500">Email actuel : {user.email}</p>
+            <h3 className="text-lg font-semibold text-gray-900">E-Mail-Adresse ändern</h3>
+            <p className="text-sm text-gray-500">Aktuelle E-Mail: {user.email}</p>
           </div>
         </div>
 
         <form onSubmit={handleUpdateEmail} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nouvelle adresse email
+              Neue E-Mail-Adresse
             </label>
             <input
               type="email"
-              placeholder="nouvelle@email.com"
+              placeholder="neu@beispiel.ch"
               value={newEmail}
               onChange={e => setNewEmail(e.target.value)}
               className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
@@ -197,8 +207,8 @@ export default function AccountSettings({ user: propUser }) {
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
               <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
               <div className="text-sm text-green-700">
-                <p className="font-semibold">Email de confirmation envoyé !</p>
-                <p className="text-xs mt-1">Vérifiez votre nouvelle boîte email pour confirmer le changement.</p>
+                <p className="font-semibold">Bestätigungs-E-Mail gesendet!</p>
+                <p className="text-xs mt-1">Bitte überprüfe dein Postfach, um die Adresse zu bestätigen.</p>
               </div>
             </div>
           )}
@@ -213,52 +223,86 @@ export default function AccountSettings({ user: propUser }) {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Mettre à jour l'email
+                E-Mail aktualisieren
               </>
             )}
           </button>
         </form>
       </div>
 
-      {/* Changer le mot de passe */}
+      {/* Passwort ändern */}
       <div className="bg-white rounded-xl shadow-lg p-6">
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2 bg-indigo-100 rounded-lg">
             <Lock className="h-5 w-5 text-indigo-600" />
           </div>
           <div className="text-left">
-            <h3 className="text-lg font-semibold text-gray-900">Modifier le mot de passe</h3>
-            <p className="text-sm text-gray-500">Sécurisez votre compte avec un nouveau mot de passe</p>
+            <h3 className="text-lg font-semibold text-gray-900">Passwort ändern</h3>
+            <p className="text-sm text-gray-500">Sichere dein Konto mit einem neuen Passwort</p>
           </div>
         </div>
 
         <form onSubmit={handleUpdatePassword} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nouveau mot de passe
+              Aktuelles Passwort
             </label>
             <input
               type="password"
               placeholder="••••••••"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              minLength={6}
+              value={currentPassword}
+              onChange={e => setCurrentPassword(e.target.value)}
+              required
               className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Confirmer le mot de passe
+              Neues Passwort
             </label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={e => setConfirmPassword(e.target.value)}
-              minLength={6}
-              className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
+            <div className="relative">
+              <input
+                type={showNewPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={newPassword}
+                onChange={e => setNewPassword(e.target.value)}
+                minLength={6}
+                className="block w-full px-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(s => !s)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500"
+                aria-label={showNewPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+              >
+                {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Passwort bestätigen
+            </label>
+            <div className="relative">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                minLength={6}
+                className="block w-full px-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(s => !s)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500"
+                aria-label={showConfirmPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+              >
+                {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
 
           {passwordError && (
@@ -271,13 +315,13 @@ export default function AccountSettings({ user: propUser }) {
           {passwordSuccess && (
             <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg p-3">
               <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
-              <p className="text-sm text-green-700">Mot de passe mis à jour avec succès !</p>
+              <p className="text-sm text-green-700">Passwort erfolgreich aktualisiert!</p>
             </div>
           )}
 
           <button
             type="submit"
-            disabled={passwordPending || !newPassword || !confirmPassword}
+            disabled={passwordPending || !currentPassword || !newPassword || !confirmPassword}
             className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {passwordPending ? (
@@ -285,7 +329,7 @@ export default function AccountSettings({ user: propUser }) {
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Mettre à jour le mot de passe
+                Passwort aktualisieren
               </>
             )}
           </button>

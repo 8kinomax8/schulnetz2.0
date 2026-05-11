@@ -18,10 +18,10 @@ export default function SemesterPrompt({ onSelectSemester }) {
             <Book className="h-8 w-8 text-white" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">
-            Welcome! 👋
+            Willkommen! 👋
           </h2>
           <p className="text-indigo-100 text-sm">
-            Let's start by setting up your current semester
+            Wir legen gerade dieses aktuelle Semester fest
           </p>
         </div>
 
@@ -29,7 +29,7 @@ export default function SemesterPrompt({ onSelectSemester }) {
         <form onSubmit={handleSubmit} className="px-8 py-6">
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              What semester are you currently in?
+              In wellem Semester bisch du aktuell?
             </label>
             <div className="grid grid-cols-4 gap-2">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((sem) => (
@@ -53,7 +53,7 @@ export default function SemesterPrompt({ onSelectSemester }) {
             type="submit"
             className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg shadow-lg hover:from-indigo-700 hover:to-purple-700 transition-all transform hover:scale-[1.02]"
           >
-            Continue
+            Weiter
           </button>
         </form>
       </div>

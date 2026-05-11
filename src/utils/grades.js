@@ -1,3 +1,5 @@
+import { roundToHalfOrWhole } from '../services/calculationService';
+
 /**
  * Calcule la moyenne des notes
  * @param {number[]} grades - Tableau de notes
@@ -17,7 +19,7 @@ export const calculateAverage = (grades) => {
  * @returns {number} Note arrondie
  */
 export const roundGrade = (grade) => {
-  return Math.round(grade * 2) / 2;
+  return roundToHalfOrWhole(grade);
 };
 
 /**

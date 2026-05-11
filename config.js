@@ -4,39 +4,38 @@
  * No need to search through the entire codebase
  */
 
+/* global process */
+
+const nodeEnv = typeof process !== 'undefined' && process.env ? process.env : {};
+
 // ============================================
 // BACKEND CONFIGURATION
 // ============================================
 
 export const BACKEND_CONFIG = {
   // Server
-  PORT: process.env.PORT || 3001,
-  HOST: process.env.HOST || '0.0.0.0',
-  NODE_ENV: process.env.NODE_ENV || 'development',
+  PORT: nodeEnv.PORT || 3001,
+  HOST: nodeEnv.HOST || '0.0.0.0',
+  NODE_ENV: nodeEnv.NODE_ENV || 'development',
 
   // Database (RDS)
   DATABASE: {
-    host: process.env.RDS_HOST || 'localhost',
-    user: process.env.RDS_USER || 'root',
-    password: process.env.RDS_PASSWORD || '',
-    database: process.env.RDS_DATABASE || 'bm_calculator',
-    port: process.env.RDS_PORT || 3306,
+    host: nodeEnv.RDS_HOST || 'localhost',
+    user: nodeEnv.RDS_USER || 'root',
+    password: nodeEnv.RDS_PASSWORD || '',
+    database: nodeEnv.RDS_DATABASE || 'bm_calculator',
+    port: nodeEnv.RDS_PORT || 3306,
     ssl: { rejectUnauthorized: false } // MySQL RDS nécessite TLS
   },
 
   // API Keys
-  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+  ANTHROPIC_API_KEY: nodeEnv.ANTHROPIC_API_KEY || '',
 
   // CORS Origins (Add your Amplify domain here)
   CORS_ORIGINS: [
     'http://localhost:5173',
     'http://127.0.0.1:5173',
-    // Domaines personnalisés et production
-    'https://main.d2xx7v3g6gelma.amplifyapp.com',
-    'https://m346-backend.kinome.one',
-    process.env.FRONTEND_URL || 'http://localhost:5173',
-    // Amplify hosted domains (wildcard) - must be https for deployed app
-    /https:\/\/.*\.amplifyapp\.com$/
+    nodeEnv.FRONTEND_URL || 'http://localhost:5173',
   ].filter(Boolean),
 
   // Maximum file size for uploads (30MB)
@@ -50,16 +49,15 @@ export const BACKEND_CONFIG = {
 export const FRONTEND_CONFIG = {
   // Backend API URL
   // Use VITE_API_URL env variable, fallback to local EC2 (change if needed)
-  API_URL: import.meta.env?.VITE_API_URL || 'https://m346-backend.kinome.one',
-
-  // AWS Cognito Configuration
-  COGNITO: {
-    authority: 'https://cognito-idp.us-east-1.amazonaws.com/us-east-1_jmc1zF8iC',
-    clientId: '2mfheoj99guf7t0d3r9n3d5t1m',
-    redirectUri: import.meta.env?.VITE_COGNITO_REDIRECT_URI || 'https://main.d2xx7v3g6gelma.amplifyapp.com/',
-    responseType: 'code',
-    scope: 'openid email profile'
-  },
+  // Default to local backend for development; override with VITE_API_URL in production
+  // In dev, prefer same-origin calls through the Vite proxy (`/api` -> http://localhost:3001)
+  API_URL: (() => {
+    const envUrl = import.meta.env?.VITE_API_URL;
+    const isDev = !!import.meta.env?.DEV;
+    if (!envUrl) return isDev ? '' : 'http://localhost:3001';
+    if (isDev && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(envUrl)) return '';
+    return envUrl;
+  })(),
 
   // Application Settings
   MAX_GRADE: 6.0,
@@ -86,10 +84,6 @@ export function validateConfig() {
   if (!FRONTEND_CONFIG.API_URL) {
     errors.push('❌ VITE_API_URL is not set');
   }
-  if (!FRONTEND_CONFIG.COGNITO.clientId) {
-    errors.push('⚠️ Cognito clientId is not set');
-  }
-
   if (errors.length > 0) {
     console.error('Configuration Errors:');
     errors.forEach(err => console.error(err));

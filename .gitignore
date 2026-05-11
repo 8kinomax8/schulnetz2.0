@@ -51,3 +51,13 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+
+# Skills
+*.agent
+*.claude
+*skill*
+*.continue
+
+supabase/.temp/
+supabase/.branches/
+database/

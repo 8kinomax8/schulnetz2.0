@@ -1,87 +1,67 @@
 import express from "express";
 import cors from "cors";
-import fetch from "node-fetch";
-import "dotenv/config";
+/* global process */
+import dotenv from "dotenv";
+import { fileURLToPath } from "url";
+import path from "path";
 import { testConnection } from "./db.js";
 import routes from "./routes.js";
-import { BACKEND_CONFIG, validateConfig } from "../config.js";
+import * as iaService from "./iaService.js";
+
+// Load env from both `backend/.env` (default) and repo root `.env` (common in this project)
+dotenv.config();
+try {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  // If the variable exists but is empty (common in shells), force override from `.env`
+  dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
+} catch {
+  // ignore: best-effort for local dev
+}
+
+// IMPORTANT (ESM): load env BEFORE importing config so it can read process.env.
+const { BACKEND_CONFIG, validateConfig } = await import("../config.js");
 
 validateConfig();
 
 const app = express();
+// Robust CORS handling: allow configured origins, localhost dev, and log rejections
 app.use(cors({
-  origin: BACKEND_CONFIG.CORS_ORIGINS,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. curl, server-to-server) with no origin
+    if (!origin) return callback(null, true);
+
+    const allowed = Array.isArray(BACKEND_CONFIG.CORS_ORIGINS)
+      ? BACKEND_CONFIG.CORS_ORIGINS
+      : [BACKEND_CONFIG.CORS_ORIGINS];
+
+    // Always allow common dev hosts (Vite may pick another port if 5173 is taken)
+    const devOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/;
+    if (devOriginRe.test(origin) || allowed.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.warn(`Rejected CORS origin: ${origin}`);
+    return callback(new Error('Not allowed by CORS'), false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 app.use(express.json({ limit: BACKEND_CONFIG.MAX_FILE_SIZE }));
 
+
 app.set('trust proxy', true);
 
-// 🔒 FIXED PROMPTS
-const BULLETIN_PROMPT = `
-Analyze this Swiss Berufsmaturität school report. Extract ALL semesters with their subjects and grades. Respond ONLY with valid JSON, no preamble, no markdown, in this exact format:
-{
-  "semesters": [
-    {
-      "semester": 1,
-      "grades": {
-        "Subject_Name": numeric_grade,
-        "Other_Subject": numeric_grade
-      }
-    },
-    {
-      "semester": 2,
-      "grades": {
-        "Subject_Name": numeric_grade
-      }
-    }
-  ]
-}
-
-If the document shows multiple semester columns, extract ALL of them. Subjects may vary per semester.
-
-Possible subjects: Deutsch, Englisch, Französisch, Mathematik, Naturwissenschaften, Finanz- und Rechnungswesen, Wirtschaft und Recht, Geschichte und Politik, Interdisziplinäres Arbeiten in den Fächern.
-
-If you don't find information, return {"error": "description"}.
-`;
-
-const SAL_PROMPT = `
-Analyze this SAL screenshot (list of assessments). Extract ALL assessments with their subject, date and grade. Respond ONLY with valid JSON, no preamble, no markdown, in this exact format:
-{
-  "semester": "current",
-  "controls": [
-    {
-      "subject": "Canonical_Subject_Name",
-      "date": "YYYY-MM-DD",
-      "name": "Assessment name",
-      "grade": numeric_grade
-    }
-  ]
-}
-
-IMPORTANT RULES:
-- IGNORE all lines where the subject name starts with a number (e.g.: "129-INP", "202-MAT")
-- Deduce the subject from the assessment name and/or the start of the subject name
-- Extract the date of each assessment (format YYYY-MM-DD if possible, otherwise DD.MM.YYYY)
-- Use ONLY these canonical subject names: Deutsch, Englisch, Französisch, Mathematik, Naturwissenschaften, Finanz- und Rechnungswesen, Wirtschaft und Recht, Geschichte und Politik, Interdisziplinäres Arbeiten in den Fächern
-
-MAPPINGS (use the canonical name directly):
-- DEU/Deutsch → Deutsch
-- ENG/Englisch → Englisch
-- FRA/Französisch → Französisch
-- MS/MG/Mathematik → Mathematik
-- NWCH/NWPH → Naturwissenschaften
-- FRW/Finanz → Finanz- und Rechnungswesen
-- WR/Wirtschaft → Wirtschaft und Recht
-- GE/Geschichte → Geschichte und Politik
-- IDAF/Interdisziplinär → Interdisziplinäres Arbeiten in den Fächern
-
-If you don't find information, return {"error": "description"}.
-`;
+// ============================================================================
+// DOCUMENT SCANNING ENDPOINT - Delegates to IA Service
+// ============================================================================
+// Endpoint to scan and analyze school documents (bulletins, SAL screenshots)
+// Uses Claude vision API for image/PDF document extraction
+// Response contains extracted grades, controls, or semester data
 
 app.post("/api/scan", async (req, res) => {
-  console.log("🔵 Request received on /api/scan");
+  console.log("🔵 POST /api/scan - Document analysis request");
   try {
     const { image, scanType } = req.body;
 
@@ -91,98 +71,56 @@ app.post("/api/scan", async (req, res) => {
     }
 
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.log("❌ Missing API key");
+      console.log("❌ Missing Anthropic API key");
       return res.status(500).json({ error: "Missing Anthropic API key" });
     }
 
-    // Extract media type and base64 data from data URI
-    // Format: data:image/png;base64,ABC123... or data:application/pdf;base64,ABC123...
-    const matches = image.match(/^data:([^;]+);base64,(.+)$/);
-    if (!matches || !matches[1] || !matches[2]) {
-      console.log("❌ Invalid image format:", image.substring(0, 50));
-      return res.status(400).json({ error: "Invalid image format. Must be data:mime/type;base64,..." });
-    }
-
-    const mediaType = matches[1];
-    const base64Data = matches[2];
-    
+    // Parse base64 data from data URI
+    const { mediaType, base64Data } = iaService.parseDataUri(image);
     console.log(`📸 Media type: ${mediaType}, size: ${base64Data.length} bytes`);
-    console.log(`📸 Analyzing (type: ${scanType || 'Bulletin'})...`);
 
-    // Select prompt based on scan type
-    const prompt = scanType === 'SAL' ? SAL_PROMPT : BULLETIN_PROMPT;
-    console.log("🔑 API Key:", process.env.ANTHROPIC_API_KEY.substring(0, 15) + "...");
+    // Call IA service to analyze document with Claude
+    const claudeResponse = await iaService.analyzeDocumentWithClaude(
+      base64Data,
+      mediaType,
+      scanType,
+      process.env.ANTHROPIC_API_KEY
+    );
 
-    // Only images supported (JPG, PNG, GIF, WebP)
-    const supportedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!supportedImageTypes.includes(mediaType)) {
-      console.log(`❌ Unsupported media type: ${mediaType}`);
-      return res.status(400).json({ error: `Only images are supported (JPG, PNG, WebP). Received: ${mediaType}` });
-    }
-
-    // Build content array - images only, no PDFs
-    const contentArray = [
-      {
-        type: "text",
-        text: prompt
-      },
-      {
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mediaType,
-          data: base64Data
-        }
-      }
-    ];
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content: contentArray
-          }
-        ]
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Anthropic API error:", response.status, errorText);
-      return res.status(response.status).json({ error: `API error: ${response.status}` });
-    }
-
-    const data = await response.json();
-    console.log("✅ Response received:", JSON.stringify(data, null, 2));
-    res.json(data);
+    // Return Claude's response directly
+    res.json(claudeResponse);
 
   } catch (error) {
-    console.error("❌ Server error:", error);
-    res.status(500).json({ error: "Server error: " + error.message });
+    console.error("❌ /api/scan error:", error.message);
+    res.status(error.message.includes("400") ? 400 : 500).json({
+      error: error.message
+    });
   }
 });
 
-// API routes (MUST be after /api/scan so it takes priority)
+// ============================================================================
+// DATABASE API ROUTES (MySQL - Legacy)
+// ============================================================================
+// Note: These routes are maintained for backward compatibility
+// but the frontend has migrated to Supabase for primary persistence
+
 app.use('/api', routes);
 
-app.listen(BACKEND_CONFIG.PORT, BACKEND_CONFIG.HOST, async () => {
+app.listen(BACKEND_CONFIG.PORT, BACKEND_CONFIG.HOST, () => {
   console.log(`Backend API running on http://${BACKEND_CONFIG.HOST}:${BACKEND_CONFIG.PORT}`);
   console.log("Environment:", BACKEND_CONFIG.NODE_ENV);
   console.log("Loaded API key:", BACKEND_CONFIG.ANTHROPIC_API_KEY ? `✅ (starts with ${BACKEND_CONFIG.ANTHROPIC_API_KEY.substring(0, 10)}...)` : "❌ MISSING");
   console.log("CORS origins:", BACKEND_CONFIG.CORS_ORIGINS);
-  
-  // Test database connection
-  const dbConnected = await testConnection();
-  if (!dbConnected) {
-    console.error("⚠️ Running without database.");
-  }
 });
+
+// Test database connection asynchronously without blocking server startup
+(async () => {
+  try {
+    const dbConnected = await testConnection();
+    if (!dbConnected) {
+      console.error("⚠️ Running without database.");
+    }
+  } catch (err) {
+    console.error("⚠️ Database test error:", err.message);
+  }
+})();

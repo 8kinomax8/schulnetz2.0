@@ -63,30 +63,43 @@ export const useBulletinAnalysis = (
           subjects,
           validSubjects
         );
-        
+
         setSubjects(updatedSubjects);
-        
+
         // Save to Supabase if callback provided
+        const saveErrors = [];
         if (onAddControl && addedControls.length > 0) {
           for (const control of addedControls) {
-            const normalizedGrade = normalizeNumber(control.grade);
-            const normalizedWeight = Math.max(1, Math.round(normalizeNumber(control.weight) || 1));
-            const normalizedDate = control.date ? formatSwissDate(control.date) : null;
+            try {
+              const normalizedGrade = normalizeNumber(control.grade);
+              const normalizedWeight = Math.max(1, Math.round(normalizeNumber(control.weight) || 1));
+              const normalizedDate = control.date ? formatSwissDate(control.date) : null;
 
-            await onAddControl(
-              control.subject,
-              normalizedGrade,
-              normalizedWeight,
-              normalizedDate,
-              control.name
-            );
+              console.log('💾 Saving control to Supabase:', { subject: control.subject, grade: normalizedGrade, weight: normalizedWeight, date: normalizedDate });
+              await onAddControl(
+                control.subject,
+                normalizedGrade,
+                normalizedWeight,
+                normalizedDate,
+                control.name
+              );
+              console.log('✅ Control saved successfully:', control.subject);
+            } catch (err) {
+              console.error('❌ Failed to save control to Supabase:', { control: control.subject, error: err.message });
+              saveErrors.push(`${control.subject}: ${err.message}`);
+            }
           }
         }
-        
+
+        const message = saveErrors.length > 0
+          ? `${addedControls.length} assessment(s) added locally, but ${saveErrors.length} failed to save: ${saveErrors.join('; ')}`
+          : `${addedControls.length} assessment(s) added and saved`;
+
         setAnalysisResult({
           semester: 'current',
           controls: addedControls,
-          message: `${addedControls.length} assessment(s) added`
+          message: message,
+          saveErrors: saveErrors.length > 0 ? saveErrors : undefined
         });
       }
       // Bulletin processing
@@ -99,19 +112,33 @@ export const useBulletinAnalysis = (
         );
 
         setSemesterGrades(updatedSemesterGrades);
-        
+
         // Save to Supabase if callback provided
+        const saveErrors = [];
         if (onSaveBulletin && semestersList.length > 0) {
           for (const { semester, mappedGrades } of semestersList) {
             for (const [subject, grade] of Object.entries(mappedGrades)) {
-              await onSaveBulletin(subject, semester, grade);
+              try {
+                console.log('💾 Saving semester grade to Supabase:', { subject, semester, grade });
+                await onSaveBulletin(subject, semester, grade);
+                console.log('✅ Semester grade saved successfully:', { subject, semester, grade });
+              } catch (err) {
+                console.error('❌ Failed to save semester grade to Supabase:', { subject, semester, error: err.message });
+                saveErrors.push(`${subject} S${semester}: ${err.message}`);
+              }
             }
           }
         }
-        
+
+        const totalGrades = semestersList.reduce((acc, s) => acc + Object.keys(s.mappedGrades).length, 0);
+        const message = saveErrors.length > 0
+          ? `${totalGrades} grade(s) added locally from ${semestersList.length} semester(s), but ${saveErrors.length} failed to save: ${saveErrors.join('; ')}`
+          : `${totalGrades} grade(s) added and saved from ${semestersList.length} semester(s)`;
+
         setAnalysisResult({
           semesters: semestersList,
-          message: `${semestersList.length} semester(s) added with ${semestersList.reduce((acc, s) => acc + Object.keys(s.mappedGrades).length, 0)} grades`
+          message: message,
+          saveErrors: saveErrors.length > 0 ? saveErrors : undefined
         });
       }
     } catch (error) {

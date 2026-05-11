@@ -19,14 +19,15 @@ export async function listSemesterGrades() {
       )
     `)
     .order('semester_number', { ascending: true });
-  
+
   if (error) throw error;
   return data ?? [];
 }
 
 export async function upsertSemesterGrade({ subject_id, semester_number, grade }) {
   const payload = { subject_id, semester_number, grade };
-  
+  console.log('📤 semesterGradeService.upsertSemesterGrade - preparing upsert:', payload);
+
   const { data, error } = await supabase
     .from('semester_grades')
     .upsert(payload, {
@@ -44,8 +45,13 @@ export async function upsertSemesterGrade({ subject_id, semester_number, grade }
       )
     `)
     .single();
-  
-  if (error) throw error;
+
+  if (error) {
+    console.error('❌ semesterGradeService.upsertSemesterGrade - upsert failed:', { error: error.message, code: error.code, details: error.details });
+    throw error;
+  }
+
+  console.log('✅ semesterGradeService.upsertSemesterGrade - upsert successful:', data);
   return data;
 }
 
@@ -54,7 +60,7 @@ export async function deleteSemesterGrade(id) {
     .from('semester_grades')
     .delete()
     .eq('id', id);
-  
+
   if (error) throw error;
   return true;
 }

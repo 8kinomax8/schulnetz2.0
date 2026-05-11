@@ -15,12 +15,20 @@ export async function listGrades() {
 
 export async function addGrade({ subject_id = null, semester_number, grade, weight = 1, date = null, control_name = null, source = null }) {
   const payload = { subject_id, semester_number, grade, weight, date, control_name, source };
+  console.log('📤 gradeService.addGrade - preparing insert:', payload);
+
   const { data, error } = await supabase
     .from('grades')
     .insert([payload])
     .select()
     .single();
-  if (error) throw error;
+
+  if (error) {
+    console.error('❌ gradeService.addGrade - insert failed:', { error: error.message, code: error.code, details: error.details });
+    throw error;
+  }
+
+  console.log('✅ gradeService.addGrade - insert successful:', data);
   return data;
 }
 

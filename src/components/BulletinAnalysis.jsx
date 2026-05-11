@@ -3,7 +3,7 @@ import { Upload, Camera } from 'lucide-react';
 import { formatSwissDate } from '../utils';
 
 /**
- * Component to display the result of analyzing a bulletin or SAL screenshot
+ * Komponente zum Aazeige vom Resultat vo ere Zeugniss- oder SAL-Analyse.
  */
 export default function BulletinAnalysis({
   isAnalyzing,
@@ -25,8 +25,8 @@ export default function BulletinAnalysis({
           ) : (
             <>
               <Camera className="w-5 h-5 text-purple-600" />
-              <h3 className="text-lg font-semibold text-gray-800">
-                Scan bulletin
+                <h3 className="text-lg font-semibold text-gray-800">
+                Zeugniss scanne
               </h3>
             </>
           )}
@@ -40,14 +40,14 @@ export default function BulletinAnalysis({
                 <>
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
-                    Only image (JPG, PNG)
+                    Nur Bilddateien (JPG, PNG)
                   </p>
                 </>
               ) : (
                 <>
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
-                    Only image (JPG, PNG)
+                    Bilddatei (JPG, PNG) oder PDF
                   </p>
                 </>
               )}
@@ -55,7 +55,7 @@ export default function BulletinAnalysis({
             <input
               type="file"
               className="hidden"
-              accept="image/*"
+              accept={activeTab === 'current' ? 'image/*' : 'image/*,application/pdf'}
               onChange={(e) => onFileUpload(e, activeTab)}
               disabled={isAnalyzing}
             />
@@ -65,7 +65,7 @@ export default function BulletinAnalysis({
       {isAnalyzing && (
         <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-          <span className="text-blue-600">Analysis in progress...</span>
+          <span className="text-blue-600">Analyse läuft ...</span>
         </div>
       )}
 
@@ -73,7 +73,7 @@ export default function BulletinAnalysis({
         <div className="mt-4">
           {analysisResult.error ? (
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
-              <strong>Error:</strong> {analysisResult.error}
+              <strong>Fehler:</strong> {analysisResult.error}
             </div>
           ) : analysisResult.controls ? (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -110,7 +110,7 @@ export default function BulletinAnalysis({
           ) : analysisResult.grades ? (
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
               <div className="font-semibold text-purple-800 mb-2">
-                ✅ Bulletin S{analysisResult.semester} analyzed
+                ✅ Zeugniss S{analysisResult.semester} analysiert
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 {Object.entries(analysisResult.grades).map(([subject, grade]) => (
