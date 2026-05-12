@@ -1451,8 +1451,8 @@ export default function BMGradeCalculator() {
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
       <div className="max-w-7xl mx-auto px-2 sm:px-4">
         {/* Header */}
-        <header className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 mb-4 border border-gray-100">
-          <div className="flex items-start justify-between gap-4 mb-4">
+        <header className="bg-white rounded-2xl shadow-xl px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-gray-100">
+          <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900 flex items-center gap-3">
                 Schulnetz 2.0
@@ -1465,7 +1465,7 @@ export default function BMGradeCalculator() {
             </div>
             <div className="flex flex-col items-end gap-3 flex-shrink-0">
               {user && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full">
+                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-full">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${(database.userId && database.loading === false)
                     ? 'bg-green-500'
                     : 'bg-red-500'
@@ -1480,7 +1480,7 @@ export default function BMGradeCalculator() {
                   type="button"
                   onClick={handleSignOut}
                   disabled={signOutPending}
-                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <LogOut className="h-4 w-4" />
                   {signOutPending ? '...' : 'Abmelden'}
@@ -1560,7 +1560,7 @@ export default function BMGradeCalculator() {
                 </div>
               </div>
 
-              <div className="grid lg:grid-cols-3 gap-4 mb-6">
+              <div className="grid lg:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">BM-Typ</label>
                   <select
@@ -1680,7 +1680,10 @@ export default function BMGradeCalculator() {
                     </label>
 
                     {efzIsAnalyzing && (
-                      <div className="mt-4 text-blue-700 text-sm">Analyse läuft ...</div>
+                      <div className="flex items-center justify-center p-4 bg-blue-50 rounded-lg">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                        <span className="text-blue-600">Analyse läuft ...</span>
+                      </div>
                     )}
                     {efzAnalysisResult?.error && (
                       <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
@@ -1879,7 +1882,10 @@ export default function BMGradeCalculator() {
                     </label>
 
                     {efzIsAnalyzing && (
-                      <div className="mt-4 text-purple-700 text-sm">Analyse läuft ...</div>
+                      <div className="flex items-center justify-center p-4 bg-purple-50 rounded-lg">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mr-3"></div>
+                        <span className="text-purple-600">Analyse läuft ...</span>
+                      </div>
                     )}
                     {efzAnalysisResult?.error && (
                       <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
