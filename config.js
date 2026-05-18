@@ -48,14 +48,19 @@ export const BACKEND_CONFIG = {
 
 export const FRONTEND_CONFIG = {
   // Backend API URL
-  // Use VITE_API_URL env variable, fallback to local EC2 (change if needed)
-  // Default to local backend for development; override with VITE_API_URL in production
-  // In dev, prefer same-origin calls through the Vite proxy (`/api` -> http://localhost:3001)
+  // Production (Vercel): use relative paths (Vercel Functions at /api, same origin)
+  // Development: use Vite proxy or VITE_API_URL env variable
   API_URL: (() => {
-    const envUrl = import.meta.env?.VITE_API_URL;
     const isDev = !!import.meta.env?.DEV;
-    if (!envUrl) return isDev ? '' : 'http://localhost:3001';
-    if (isDev && /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(envUrl)) return '';
+    const envUrl = import.meta.env?.VITE_API_URL;
+    
+    // Production: always use relative paths (Vercel Functions)
+    if (!isDev) return '';
+    
+    // Development: use Vite proxy if localhost, else use VITE_API_URL
+    if (!envUrl || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(envUrl)) {
+      return ''; // Use Vite proxy to http://localhost:3001
+    }
     return envUrl;
   })(),
 
