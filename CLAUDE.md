@@ -190,11 +190,7 @@ Recommandé :
 
 ## Décisions d'architecture
 
-* Supabase remplace :
-
-  * base de données (ex-RDS)
-  * authentification (ex-Cognito)
-* Backend réduit au minimum
+* **Supabase** : base de données (PostgreSQL) + authentification intégrée
 * Logique métier principalement côté frontend
 * Utilisation de RLS pour sécuriser les données
 
@@ -265,35 +261,12 @@ Fichiers clés: `src/hooks/useApprenticeshipCalculations.js`, `src/services/calc
 ### Numérisation et IA
 
 * **API Anthropic Claude**: Analyse de documents (bulletins, captures d'écran SAL)
-* **Endpoint `/api/scan`**: Traite les images via l'API Claude pour extraire les notes
+* **Analyse côté client**: Traitement des images et extraction des notes
 * **Prompt SAL**: Extraction des contrôles continus avec dates et matières
 * **Prompt Bulletin**: Extraction des semestres et notes des bulletins scolaires
 * **Formats supportés**: JPG, PNG, WebP (images), PDF (bulletins)
 
-Fichiers clés: `backend/server.js` (lignes 84-173), `src/services/apiService.js`, `backend/routes.js`
-
-### Backend API (MySQL)
-
-Base de données relationnelle optionnelle pour persistance serveur:
-
-**Tables principales**:
-* `users` - Profils utilisateurs (Cognito Sub, email, BM type)
-* `grades` - Notes de contrôles individuels
-* `semester_grades` - Moyennes semestrielles par matière
-* `semester_plans` - Contrôles planifiés (simulation)
-* `subject_goals` - Objectifs de notes par matière
-* `exam_simulator` - Notes d'examen simulées
-* Tables EFZ: `efz_modules`, `efz_module_grades`, `efz_uek_grades`, `efz_ipa`
-
-**Endpoints REST** (prefix `/api`):
-* `POST /users/sync` - Synchronisation utilisateur
-* `POST /users/:userId/grades` - Ajout d'un contrôle
-* `GET/POST /users/:userId/semester-grades` - Notes semestrielles
-* `POST /users/:userId/semester-plans` - Contrôles planifiés
-* `POST /users/:userId/exam-grades` - Notes d'examen
-* `POST /api/scan` - Analyse de documents via IA
-
-Fichiers: `backend/queries.js`, `backend/routes.js`, `backend/db.js`
+Fichiers clés: `src/services/apiService.js`
 
 ### Modifications récentes (git log)
 

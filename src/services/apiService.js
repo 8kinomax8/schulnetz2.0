@@ -2,10 +2,8 @@
  * Service API pour l'analyse des bulletins et screenshots SAL
  */
 
-import { FRONTEND_CONFIG } from '../../config.js';
 import { formatSwissDate } from '../utils';
-
-const API_URL = FRONTEND_CONFIG.API_URL;
+import { supabase } from './supabaseClient';
 
 /**
  * Convertit un fichier en base64
@@ -81,13 +79,24 @@ export const analyzeBulletin = async (file, scanType = 'Bulletin') => {
       throw new Error(`Unsupported file type: ${mimeType}. Only images and PDFs are accepted.`);
     }
     
+    // Get authentication token
+    const { data, error: sessionError } = await supabase.auth.getSession();
+    const token = data?.session?.access_token;
+    
+    if (!token) {
+      throw new Error('Authentication required. Please log in to scan documents.');
+    }
+    
     // Build data URI in correct format: data:image/type;base64,ABC123...
     const dataUri = `data:${mimeType};base64,${base64Data}`;
     console.log(`🔵 Sending scan request (type: ${scanType}, mimeType: ${mimeType}, size: ${base64Data.length} bytes)`);
     
-    const response = await fetch(`${API_URL}/api/scan`, {
+    const response = await fetch('/api/scan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
       body: JSON.stringify({ 
         image: dataUri,
         scanType
@@ -101,13 +110,13 @@ export const analyzeBulletin = async (file, scanType = 'Bulletin') => {
       throw new Error(errorMsg);
     }
 
-    const data = await response.json();
+    const data_response = await response.json();
     
-    if (!data.content || !data.content[0] || !data.content[0].text) {
-      throw new Error('Invalid API response: ' + JSON.stringify(data));
+    if (!data_response.content || !data_response.content[0] || !data_response.content[0].text) {
+      throw new Error('Invalid API response: ' + JSON.stringify(data_response));
     }
     
-    const textContent = data.content[0].text;
+    const textContent = data_response.content[0].text;
     const cleanText = textContent.replace(/```json|```/g, '').trim();
     const result = JSON.parse(cleanText);
 

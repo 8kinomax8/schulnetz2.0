@@ -1465,7 +1465,7 @@ export default function BMGradeCalculator() {
             </div>
             <div className="flex flex-col items-end gap-3 flex-shrink-0">
               {user && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-full">
+                <div className="inline-flex items-center justify-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-full font-medium">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${(database.userId && database.loading === false)
                     ? 'bg-green-500'
                     : 'bg-red-500'

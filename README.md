@@ -66,10 +66,6 @@ schulnetz2.0/
 │   ├── styles/             # CSS files
 │   ├── App.jsx             # Main application component
 │   └── main.jsx            # Entry point
-├── backend/                # Optional Node.js backend
-│   ├── server.js
-│   ├── routes.js
-│   └── queries.js
 ├── supabase/               # Database migrations
 │   └── migrations/
 ├── index.html
@@ -198,13 +194,6 @@ The frontend can be deployed to:
 - Vercel
 - Netlify
 - Any static hosting service
-
-### Backend (optional)
-Deploy Node.js backend to:
-- Railway
-- Render
-- Heroku
-- AWS Lambda
 
 ### Database
 Supabase hosting is included in the project configuration.

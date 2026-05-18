@@ -4,6 +4,30 @@
  * Handles: SAL screenshots, bulletin PDFs, EFZ module scans
  */
 
+import { createClient } from '@supabase/supabase-js';
+
+// ============================================================================
+// CONFIGURATION & CONSTANTS
+// ============================================================================
+
+const MAX_BASE64_SIZE = 5 * 1024 * 1024; // 5MB limit
+const VALID_SCAN_TYPES = ['SAL', 'BULLETIN', 'EFZ_SAL'];
+
+// Whitelist allowed origins
+const ALLOWED_ORIGINS = [
+  'http://localhost:5173',  // Local development
+  'http://localhost:3000',  // Alt local dev
+  ...(process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`]
+    : []),
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : [])
+].filter(Boolean);
+
+// Initialize Supabase client for auth verification
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
 // ============================================================================
 // PROMPTS - Claude instructions
 // ============================================================================
@@ -174,18 +198,57 @@ async function analyzeDocumentWithClaude(base64Data, mediaType, scanType, apiKey
 }
 
 // ============================================================================
+// AUTHENTICATION & SECURITY HELPERS
+// ============================================================================
+
+async function verifySupabaseToken(token) {
+  if (!supabase) {
+    console.warn('[Auth] Supabase not configured, skipping auth check');
+    return { user: null, error: 'Supabase not configured' };
+  }
+
+  if (!token) {
+    return { user: null, error: 'No token provided' };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error) {
+      console.warn('[Auth] Token verification failed:', error.message);
+      return { user: null, error: error.message };
+    }
+    return { user: data.user, error: null };
+  } catch (e) {
+    console.error('[Auth] Unexpected error during token verification:', e.message);
+    return { user: null, error: 'Token verification failed' };
+  }
+}
+
+function validateCORSOrigin(origin) {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.includes(origin);
+}
+
+function setCORSHeaders(req, res) {
+  const origin = req.headers.origin;
+  if (validateCORSOrigin(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization'
+  );
+}
+
+// ============================================================================
 // VERCEL FUNCTION HANDLER
 // ============================================================================
 
 export default async function handler(req, res) {
-  // CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
+  // Set CORS headers with origin validation
+  setCORSHeaders(req, res);
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
@@ -198,17 +261,58 @@ export default async function handler(req, res) {
 
   console.log("🔵 POST /api/scan - Document analysis request");
   try {
+    // ========== AUTHENTICATION ==========
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.replace('Bearer ', '');
+
+    if (!token) {
+      console.warn('[Auth] Request missing bearer token');
+      return res.status(401).json({ error: 'Unauthorized: Missing bearer token' });
+    }
+
+    const { user, error: authError } = await verifySupabaseToken(token);
+    if (authError || !user) {
+      console.warn('[Auth] Invalid token for user:', authError);
+      return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    }
+
+    console.log(`[Auth] Authenticated user: ${user.id}`);
+
+    // ========== INPUT VALIDATION ==========
     const { image, scanType } = req.body;
 
     if (!image) {
-      console.log("❌ No image provided");
-      return res.status(400).json({ error: "No image provided" });
+      console.warn('[Validation] No image provided');
+      return res.status(400).json({ error: 'No image provided' });
     }
 
+    // Validate base64 size
+    if (image.length > MAX_BASE64_SIZE) {
+      console.warn(`[Validation] Image too large: ${image.length} bytes (max ${MAX_BASE64_SIZE})`);
+      return res.status(413).json({
+        error: `Image too large. Max ${MAX_BASE64_SIZE / (1024 * 1024)}MB allowed`
+      });
+    }
+
+    // Validate scanType
+    if (!scanType || !VALID_SCAN_TYPES.includes(scanType)) {
+      console.warn(`[Validation] Invalid scanType: ${scanType}`);
+      return res.status(400).json({
+        error: `Invalid scanType. Must be one of: ${VALID_SCAN_TYPES.join(', ')}`
+      });
+    }
+
+    // Validate data URI format
+    if (!image.match(/^data:(image|application)\/[a-zA-Z0-9\-+.]+;base64,/)) {
+      console.warn('[Validation] Invalid data URI format');
+      return res.status(400).json({ error: 'Invalid data URI format' });
+    }
+
+    // ========== PROCESSING ==========
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.log("❌ Missing Anthropic API key");
-      return res.status(500).json({ error: "Missing Anthropic API key" });
+      console.error('Missing Anthropic API key');
+      return res.status(500).json({ error: 'Server configuration error' });
     }
 
     const { mediaType, base64Data } = parseDataUri(image);
@@ -224,8 +328,8 @@ export default async function handler(req, res) {
     res.json(claudeResponse);
 
   } catch (error) {
-    console.error("❌ /api/scan error:", error.message);
-    res.status(error.message.includes("400") ? 400 : 500).json({
+    console.error('❌ /api/scan error:', error.message);
+    res.status(error.message.includes('400') ? 400 : 500).json({
       error: error.message
     });
   }
