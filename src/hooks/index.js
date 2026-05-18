@@ -7,3 +7,4 @@ export { useGradeCalculations } from './useGradeCalculations';
 export { useBulletinAnalysis } from './useBulletinAnalysis';
 export { useApprenticeshipCalculations } from './useApprenticeshipCalculations';
 export { useAuth } from './useAuth';
+export { useRateLimit, RateLimitBadge, RateLimitError } from './useRateLimit';

@@ -124,6 +124,7 @@ export default function BMGradeCalculator() {
   const [efzManualModuleId, setEfzManualModuleId] = useState('');
   const [efzManualModuleAverage, setEfzManualModuleAverage] = useState('');
   const [efzManualUekAverage, setEfzManualUekAverage] = useState('');
+  const [efzManualUekTheme, setEfzManualUekTheme] = useState('');
   const [signOutPending, setSignOutPending] = useState(false);
 
   // EFZ module editing
@@ -1217,13 +1218,6 @@ export default function BMGradeCalculator() {
     const all = [...baseGrades, ...planned];
     if (all.length === 0) return null;
 
-    // Check if goal is already achieved
-    const currentAverage = calculations.getSemesterAverage(subject);
-    if (currentAverage && currentAverage >= targetAverage) {
-      // Goal already reached - any grade will maintain or exceed it
-      return 1.0;
-    }
-
     // Convert rounded goal to real goal (e.g.: 6 → 5.75, 5 → 4.75)
     // This ensures the raw average rounds UP to the target when rounded to nearest 0.5
     const realTarget = targetAverage - 0.25;
@@ -1231,7 +1225,9 @@ export default function BMGradeCalculator() {
     const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
     const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
     const required = (realTarget * (currentTotalWeight + assumedWeight) - currentSum) / assumedWeight;
-    return Math.round(required * 10) / 10;
+    
+    // Clamp result to valid grade range [1.0, 6.0]
+    return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
   };
 
   const calculateRequiredModuleGradeWithPlans = (moduleId, targetAverage, assumedWeight = 1) => {
@@ -1239,13 +1235,6 @@ export default function BMGradeCalculator() {
     const planned = modulePlans[moduleId] || [];
     const all = [...baseGrades, ...planned];
     if (all.length === 0) return null;
-
-    // Check if goal is already achieved
-    const currentAverage = apprenticeshipCalculations.getModuleAverage(moduleId);
-    if (currentAverage && currentAverage >= targetAverage) {
-      // Goal already reached - any grade will maintain or exceed it
-      return 1.0;
-    }
 
     const parsedAssumedWeight = apprenticeshipCalculations.parseWeight(assumedWeight);
     if (!Number.isFinite(parsedAssumedWeight)) return null;
@@ -1259,7 +1248,9 @@ export default function BMGradeCalculator() {
       0
     );
     const required = (targetAverage * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
-    return Math.round(required * 10) / 10;
+    
+    // Clamp result to valid grade range [1.0, 6.0]
+    return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
   };
 
   const addBmManualSemesterGrade = async (subject, semester, grade) => {
@@ -1340,13 +1331,15 @@ export default function BMGradeCalculator() {
       return;
     }
 
+    const themeName = efzManualUekTheme.trim() || 'Zeugniss-Durchschnitt';
+
     const newGrade = {
       id: Date.now(),
       grade: normalizedAverage,
       weight: 1,
       displayWeight: '1',
       date: '',
-      name: 'Zeugniss-Durchschnitt',
+      name: themeName,
       source: 'import'
     };
 
@@ -1354,13 +1347,14 @@ export default function BMGradeCalculator() {
 
     if (user && database.userId && database.addEfzUekGrade) {
       try {
-        await database.addEfzUekGrade({ grade: normalizedAverage, name: 'Zeugniss-Durchschnitt', date: null });
+        await database.addEfzUekGrade({ grade: normalizedAverage, name: themeName, date: null });
       } catch (err) {
         console.warn('Error saving manual üK average to EFZ DB:', err.message || err);
       }
     }
 
     setEfzManualUekAverage('');
+    setEfzManualUekTheme('');
   };
 
   const allSubjects = [
@@ -1939,7 +1933,7 @@ export default function BMGradeCalculator() {
 
                   <div className="mb-6 rounded-lg shadow-sm p-6 border-2 bg-amber-50 border-amber-200">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Alte üK-Note hinzufügen</h3>
-                    <div className="grid md:grid-cols-3 gap-3">
+                    <div className="grid md:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Durchschnitt</label>
                         <input
@@ -1950,6 +1944,16 @@ export default function BMGradeCalculator() {
                           placeholder="Note"
                           value={efzManualUekAverage}
                           onChange={(e) => setEfzManualUekAverage(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Thema</label>
+                        <input
+                          type="text"
+                          placeholder="z.B. Linux, Datenbanken"
+                          value={efzManualUekTheme}
+                          onChange={(e) => setEfzManualUekTheme(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded text-sm"
                         />
                       </div>

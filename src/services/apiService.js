@@ -6,6 +6,46 @@ import { formatSwissDate } from '../utils';
 import { supabase } from './supabaseClient';
 
 /**
+ * Cache para rastrear el estado del rate limiting
+ */
+let rateLimitState = {
+  remaining15m: null,
+  remaining24h: null,
+  limit15m: 3,
+  limit24h: 6,
+  lastUpdate: null
+};
+
+/**
+ * Obtiene el estado actual del rate limiting
+ */
+export const getRateLimitState = () => rateLimitState;
+
+/**
+ * Actualiza el estado del rate limiting basado en headers de respuesta
+ */
+const updateRateLimitState = (headers) => {
+  const remaining15m = headers.get('x-ratelimit-remaining-15m');
+  const remaining24h = headers.get('x-ratelimit-remaining-24h');
+  const limit15m = headers.get('x-ratelimit-limit-15m');
+  const limit24h = headers.get('x-ratelimit-limit-24h');
+  
+  if (remaining15m !== null) {
+    rateLimitState.remaining15m = parseInt(remaining15m, 10);
+  }
+  if (remaining24h !== null) {
+    rateLimitState.remaining24h = parseInt(remaining24h, 10);
+  }
+  if (limit15m !== null) {
+    rateLimitState.limit15m = parseInt(limit15m, 10);
+  }
+  if (limit24h !== null) {
+    rateLimitState.limit24h = parseInt(limit24h, 10);
+  }
+  rateLimitState.lastUpdate = new Date();
+};
+
+/**
  * Convertit un fichier en base64
  * @param {File} file - Fichier à convertir
  * @returns {Promise<string>} Base64 data
@@ -103,9 +143,24 @@ export const analyzeBulletin = async (file, scanType = 'Bulletin') => {
       })
     });
 
+    // Update rate limit state from headers
+    updateRateLimitState(response.headers);
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
       const errorMsg = errorData.error || `HTTP ${response.status}`;
+      
+      // Handle 429 rate limit error
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('retry-after');
+        const error = new Error(errorMsg);
+        error.code = 'RATE_LIMIT_EXCEEDED';
+        error.retryAfter = retryAfter ? parseInt(retryAfter, 10) : null;
+        error.rateLimitState = rateLimitState;
+        console.error(`❌ Rate limit exceeded (${response.status}):`, errorMsg);
+        throw error;
+      }
+      
       console.error(`❌ API error (${response.status}):`, errorMsg);
       throw new Error(errorMsg);
     }

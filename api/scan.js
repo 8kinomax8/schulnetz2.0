@@ -224,6 +224,124 @@ async function verifySupabaseToken(token) {
   }
 }
 
+// ============================================================================
+// RATE LIMITING HELPERS
+// ============================================================================
+
+async function checkRateLimit(userId, token) {
+  if (!supabase) {
+    console.warn('[RateLimit] Supabase not configured, skipping rate limit check');
+    return { allowed: true, remaining: null };
+  }
+
+  try {
+    const now = new Date();
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Create client with user token for RLS
+    const userSupabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
+
+    // Query 15-minute window
+    const { data: recent15m, error: error15m } = await supabase
+      .from('scan_rate_limits')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('scanned_at', fifteenMinutesAgo.toISOString())
+      .lt('scanned_at', now.toISOString());
+
+    if (error15m) {
+      console.warn('[RateLimit] Error checking 15m limit:', error15m.message);
+      // Don't block on error, just log and continue
+      return { allowed: true, remaining: null };
+    }
+
+    const count15m = recent15m?.length || 0;
+    const remaining15m = Math.max(0, 3 - count15m);
+
+    // Check 15-minute limit (3 scans)
+    if (count15m >= 3) {
+      console.warn(`[RateLimit] User ${userId} exceeded 15-minute limit (${count15m}/3)`);
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfter: Math.ceil((fifteenMinutesAgo.getTime() + 15 * 60 * 1000 - now.getTime()) / 1000),
+        reason: 'Rate limit exceeded: 3 scans per 15 minutes'
+      };
+    }
+
+    // Query 24-hour window
+    const { data: recent24h, error: error24h } = await supabase
+      .from('scan_rate_limits')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('scanned_at', twentyFourHoursAgo.toISOString())
+      .lt('scanned_at', now.toISOString());
+
+    if (error24h) {
+      console.warn('[RateLimit] Error checking 24h limit:', error24h.message);
+      // Don't block on error
+      return { allowed: true, remaining: null };
+    }
+
+    const count24h = recent24h?.length || 0;
+    const remaining24h = Math.max(0, 6 - count24h);
+
+    // Check 24-hour limit (6 scans)
+    if (count24h >= 6) {
+      console.warn(`[RateLimit] User ${userId} exceeded 24-hour limit (${count24h}/6)`);
+      return {
+        allowed: false,
+        remaining: 0,
+        retryAfter: Math.ceil((twentyFourHoursAgo.getTime() + 24 * 60 * 60 * 1000 - now.getTime()) / 1000),
+        reason: 'Rate limit exceeded: 6 scans per 24 hours'
+      };
+    }
+
+    console.log(`[RateLimit] User ${userId}: 15m=${count15m}/3, 24h=${count24h}/6`);
+    return {
+      allowed: true,
+      remaining: Math.min(remaining15m, remaining24h),
+      remaining15m,
+      remaining24h,
+      limit15m: 3,
+      limit24h: 6
+    };
+  } catch (error) {
+    console.error('[RateLimit] Unexpected error:', error.message);
+    // Don't block on unexpected error, just log
+    return { allowed: true, remaining: null };
+  }
+}
+
+async function logScan(userId, scanType, status = 'success') {
+  if (!supabase) {
+    console.warn('[RateLimit] Supabase not configured, skipping scan log');
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('scan_rate_limits')
+      .insert({
+        user_id: userId,
+        scan_type: scanType,
+        status,
+        scanned_at: new Date().toISOString()
+      });
+
+    if (error) {
+      console.warn('[RateLimit] Error logging scan:', error.message);
+    } else {
+      console.log(`[RateLimit] Scan logged for user ${userId}`);
+    }
+  } catch (error) {
+    console.error('[RateLimit] Error inserting scan log:', error.message);
+  }
+}
+
 function validateCORSOrigin(origin) {
   if (!origin) return false;
   return ALLOWED_ORIGINS.includes(origin);
@@ -278,6 +396,33 @@ export default async function handler(req, res) {
 
     console.log(`[Auth] Authenticated user: ${user.id}`);
 
+    // ========== RATE LIMITING CHECK ==========
+    const rateLimitCheck = await checkRateLimit(user.id, token);
+    
+    // Add rate limit headers
+    res.setHeader('X-RateLimit-Limit-15m', '3');
+    res.setHeader('X-RateLimit-Limit-24h', '6');
+    
+    if (rateLimitCheck.remaining15m !== undefined) {
+      res.setHeader('X-RateLimit-Remaining-15m', rateLimitCheck.remaining15m);
+    }
+    if (rateLimitCheck.remaining24h !== undefined) {
+      res.setHeader('X-RateLimit-Remaining-24h', rateLimitCheck.remaining24h);
+    }
+
+    if (!rateLimitCheck.allowed) {
+      console.warn(`[RateLimit] Request blocked: ${rateLimitCheck.reason}`);
+      if (rateLimitCheck.retryAfter) {
+        res.setHeader('Retry-After', rateLimitCheck.retryAfter);
+      }
+      return res.status(429).json({
+        error: rateLimitCheck.reason,
+        retryAfter: rateLimitCheck.retryAfter,
+        limit15m: 3,
+        limit24h: 6
+      });
+    }
+
     // ========== INPUT VALIDATION ==========
     const { image, scanType } = req.body;
 
@@ -324,6 +469,9 @@ export default async function handler(req, res) {
       scanType,
       apiKey
     );
+
+    // Log successful scan
+    await logScan(user.id, scanType, 'success');
 
     res.json(claudeResponse);
 
