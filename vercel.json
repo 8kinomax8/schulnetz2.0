@@ -1,16 +1,5 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "framework": "vite",
-  "env": {
-    "VITE_SUPABASE_URL": {
-      "description": "Supabase project URL"
-    },
-    "VITE_SUPABASE_PUBLISHABLE_KEY": {
-      "description": "Supabase publishable key (anon key)"
-    },
-    "ANTHROPIC_API_KEY": {
-      "description": "Anthropic API key for Claude"
-    }
-  }
+  "framework": "vite"
 }
