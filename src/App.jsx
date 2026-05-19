@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
+import { Joyride, STATUS } from 'react-joyride';
 import { BM_SUBJECTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
 import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel } from './components';
 import AccountSettings from './components/AccountSettings';
@@ -57,7 +58,7 @@ const AuthBackdrop = ({ children, contentClassName = 'w-full max-w-xl' }) => (
         {children}
       </div>
       <footer className="py-6 text-center text-gray-600 text-sm flex-shrink-0">
-        Made with ❤️ by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
+        Made with ❤️ and 👾 by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
       </footer>
     </div>
   </div>
@@ -126,6 +127,7 @@ export default function BMGradeCalculator() {
   const [efzManualUekAverage, setEfzManualUekAverage] = useState('');
   const [efzManualUekTheme, setEfzManualUekTheme] = useState('');
   const [signOutPending, setSignOutPending] = useState(false);
+  const [showProfileSettings, setShowProfileSettings] = useState(false);
 
   // EFZ module editing
 
@@ -1483,9 +1485,194 @@ export default function BMGradeCalculator() {
   const efzRawOverallAverage = apprenticeshipCalculations.getRawOverallFinalGrade();
   const userFirstName = getFirstName(user);
 
+  // ============ Tour Configuration ============
+  const tourSteps = [
+    {
+      target: 'body',
+      content: 'Willkommen zu Schulnetz 2.0! Diese Führung zeigt dir alle wichtigen Funktionen der App. Lass dich leiten durch deine Noten und Simulationen!',
+      placement: 'center',
+      title: '🎓 Willkommen'
+    },
+    {
+      target: '[data-tour="tab-overview"]',
+      content: 'In der Übersicht siehst du deine aktuellen Noten im Überblick. Du kannst hier dein BM-Typ (TAL oder DL) festlegen und das aktuelle Semester angeben. Außerdem findest du hier deine Profil- und Sicherheitseinstellungen.',
+      placement: 'bottom',
+      title: '📊 Übersicht',
+      skipScroll: true
+    },
+    {
+      target: '[data-tour="tab-berufsschule"]',
+      content: 'Jetzt schauen wir uns die Berufsschule an. Der Berufsschule-Tab (EFZ) hat 4 Unterabschnitte mit unterschiedlichen Funktionen.',
+      placement: 'bottom',
+      title: '👾 Berufsschule (EFZ)',
+      skipScroll: true,
+      before: () => {
+        setMainTab('berufsschule');
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="efz-aktuell"]',
+      content: 'Aktuell: Hier kannst du SAL-Screenshots hochladen oder manuell Noten deiner aktuellen Module eintragen.',
+      placement: 'bottom',
+      title: '📝 EFZ - Aktuell',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="efz-aktuell"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="efz-simulation"]',
+      content: 'Simulation: Berechne deine minimalen Notenziele für deine Module basierend auf deinen Objektiven.',
+      placement: 'bottom',
+      title: '🎯 EFZ - Simulation',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="efz-simulation"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="efz-previous"]',
+      content: 'Alte Zeugnisse: Verwalte deine historischen Module von früheren Semestern.',
+      placement: 'bottom',
+      title: '📚 EFZ - Alte Zeugnisse',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="efz-previous"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="efz-final"]',
+      content: 'Abschluss: Simuliere deine minimale IPA-Note am Ende deiner Ausbildung basierend auf deinen Zielen.',
+      placement: 'bottom',
+      title: '🏁 EFZ - Abschluss',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="efz-final"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="tab-bm"]',
+      content: 'Die Berufsmaturität (BM) hat 4 Unterabschnitte für die Verwaltung deiner BM-Noten. Klicke um zu beginnen!',
+      placement: 'bottom',
+      title: '📚 Berufsmaturität (BM)',
+      skipScroll: true,
+      before: () => {
+        setMainTab('bm');
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="bm-current"]',
+      content: 'Aktuell: Hier gibst du die Noten (Kontrollen) des laufenden Semesters ein.',
+      placement: 'bottom',
+      title: '📝 BM - Aktuell',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="bm-current"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="bm-simulation"]',
+      content: 'Semestersimulation: Berechne deine minimalen Notenziele für jedes Fach des aktuellen Semesters.',
+      placement: 'bottom',
+      title: '🎯 BM - Simulation',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="bm-simulation"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="bm-previous"]',
+      content: 'Alte Zeugnisse: Verwalte die Noten von früheren Semestern deiner Ausbildung.',
+      placement: 'bottom',
+      title: '📚 BM - Alte Zeugnisse',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="bm-previous"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: '[data-tour="bm-exam"]',
+      content: 'Abschlussprüfungen: Analysiere deine Promotion und simuliere deine Abschlussnoten (Erfahrungsnote + Prüfungsnote).',
+      placement: 'bottom',
+      title: '🏁 BM - Abschlussprüfungen',
+      skipScroll: true,
+      before: () => {
+        document.querySelector('[data-tour="bm-exam"]')?.click();
+        return new Promise(resolve => setTimeout(resolve, 300));
+      }
+    },
+    {
+      target: 'button[title="Relancer le tutoriel"]',
+      content: 'Dieser Help-Button startet die Führung jederzeit neu - perfekt, wenn du schnell eine Erklärung brauchst!',
+      placement: 'top',
+      title: '❓ Hilfe-Button'
+    }
+  ];
+
   // ============ Render ============
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        showSkipButton={true}
+        onCallback={handleJoyrideCallback}
+        styles={{
+          options: {
+            primaryColor: '#4f46e5',
+            textColor: '#1f2937',
+            backgroundColor: '#ffffff',
+            overlayColor: 'rgba(0, 0, 0, 0.5)',
+          },
+          tooltip: {
+            borderRadius: 16,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            padding: '24px',
+            fontSize: 14,
+          },
+          tooltipTitle: {
+            fontSize: 18,
+            fontWeight: 600,
+            marginBottom: 8,
+          },
+          tooltipContainer: {
+            borderRadius: 16,
+          },
+          buttonPrimary: {
+            backgroundColor: '#4f46e5',
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 500,
+          },
+          buttonBack: {
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 500,
+            color: '#6b7280',
+          },
+          buttonClose: {
+            color: '#9ca3af',
+          },
+          buttonSkip: {
+            color: '#9ca3af',
+          },
+          spotlight: {
+            borderRadius: 12,
+          },
+        }}
+      />
       <div className="max-w-7xl mx-auto px-2 sm:px-4">
         {/* Header */}
         <header className="bg-white rounded-2xl shadow-xl px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-gray-100">
@@ -1551,6 +1738,7 @@ export default function BMGradeCalculator() {
                 ? 'bg-gradient-to-r from-cyan-600 to-cyan-500 text-white shadow-lg shadow-cyan-200'
                 : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
                 }`}
+              data-tour="tab-overview"
             >
               <ChartNoAxesGantt className="w-4 h-4" />
               Übersicht
@@ -1562,6 +1750,7 @@ export default function BMGradeCalculator() {
                 ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-200'
                 : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
                 }`}
+              data-tour="tab-berufsschule"
             >
               <Binary className="w-4 h-4" />
               Berufsschule
@@ -1573,6 +1762,7 @@ export default function BMGradeCalculator() {
                 ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-lg shadow-indigo-200'
                 : 'bg-gray-50 text-gray-700 hover:bg-gray-100 hover:shadow-md border border-gray-200'
                 }`}
+              data-tour="tab-bm"
             >
               <NotebookPen className="w-4 h-4" />
               BM
@@ -1648,11 +1838,21 @@ export default function BMGradeCalculator() {
               <div className="my-6 border-t border-gray-200" />
 
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Profil und Sicherheit</h3>
-                <p className="text-sm text-gray-500">Name, E-Mail und Passwort verwalten.</p>
+                <button
+                  onClick={() => setShowProfileSettings(!showProfileSettings)}
+                  className="flex items-center gap-2 text-lg font-semibold text-gray-900 hover:text-indigo-600 transition-colors"
+                >
+                  <span>Profil und Sicherheit</span>
+                  <span className="text-sm text-gray-500">{showProfileSettings ? '▼' : '▶'}</span>
+                </button>
+                <p className="text-sm text-gray-500 mt-1">Name, E-Mail und Passwort verwalten.</p>
               </div>
 
-              <AccountSettings user={user} />
+              {showProfileSettings && (
+                <div className="mt-4">
+                  <AccountSettings user={user} />
+                </div>
+              )}
             </div>
           )}
 
@@ -1666,6 +1866,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setEfzTab('scan-sal')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${efzTab === 'scan-sal' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="efz-aktuell"
                 >
                   Aktuell
                 </button>
@@ -1673,6 +1874,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setEfzTab('simulation')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${efzTab === 'simulation' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="efz-simulation"
                 >
                   Modulsimulation
                 </button>
@@ -1680,6 +1882,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setEfzTab('previous')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${efzTab === 'previous' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="efz-previous"
                 >
                   Alte Zeugnisse
                 </button>
@@ -1687,6 +1890,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setEfzTab('final')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${efzTab === 'final' ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="efz-final"
                 >
                   Abschluss
                 </button>
@@ -2065,7 +2269,7 @@ export default function BMGradeCalculator() {
                   <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-xl">
                     <div className="grid md:grid-cols-4 gap-4">
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
-                        <div className="text-xs text-amber-700 mb-1">Modul-Durchschnitt</div>
+                        <div className="text-xs text-amber-700 mb-1">Berufsschule-Durchschnitt</div>
                         <div className="text-2xl font-bold text-amber-900">{modulesAverage?.toFixed(1) || '-'}</div>
                       </div>
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
@@ -2166,6 +2370,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setBmTab('current')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${bmTab === 'current' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="bm-current"
                 >
                   Aktuell
                 </button>
@@ -2173,6 +2378,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setBmTab('semester-sim')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${bmTab === 'semester-sim' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="bm-simulation"
                 >
                   Semestersimulation
                 </button>
@@ -2180,6 +2386,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setBmTab('previous')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${bmTab === 'previous' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="bm-previous"
                 >
                   Alte Zeugnisse
                 </button>
@@ -2187,6 +2394,7 @@ export default function BMGradeCalculator() {
                   onClick={() => setBmTab('exam')}
                   className={`px-4 py-2 rounded-lg text-sm font-medium ${bmTab === 'exam' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'
                     }`}
+                  data-tour="bm-exam"
                 >
                   Abschlussprüfungen
                 </button>
@@ -2585,7 +2793,7 @@ export default function BMGradeCalculator() {
 
         {/* Footer */}
         <footer className="mt-8 py-6 text-center text-gray-600 text-sm">
-          Made with ❤️ by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
+          Made with ❤️ and 👾 by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
         </footer>
 
         {/* Floating Help Button to Restart Tour */}
