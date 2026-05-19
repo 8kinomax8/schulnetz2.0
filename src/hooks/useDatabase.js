@@ -25,7 +25,8 @@ export function useDatabase() {
     return {
       bm_type: saved.bmType || 'TAL',
       current_semester: saved.currentSemester || 1,
-      maturanote_goal: saved.maturnoteGoal || 5.0
+      maturanote_goal: saved.maturnoteGoal || 5.0,
+      tour_completed: saved.tourCompleted || false
     };
   };
 
@@ -45,7 +46,7 @@ export function useDatabase() {
 
     const { data: preferences, error: fetchError } = await supabase
       .from('user_preferences')
-      .select('current_semester, bm_type, maturanote_goal, created_at, updated_at')
+      .select('current_semester, bm_type, maturanote_goal, tour_completed, created_at, updated_at')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -66,9 +67,10 @@ export function useDatabase() {
           user_id: userId,
           current_semester: nextPreferences.current_semester,
           bm_type: nextPreferences.bm_type,
-          maturanote_goal: nextPreferences.maturanote_goal
+          maturanote_goal: nextPreferences.maturanote_goal,
+          tour_completed: nextPreferences.tour_completed
         }], { onConflict: 'user_id' })
-        .select('current_semester, bm_type, maturanote_goal, created_at, updated_at')
+        .select('current_semester, bm_type, maturanote_goal, tour_completed, created_at, updated_at')
         .single();
 
       if (upsertError) {
@@ -85,6 +87,7 @@ export function useDatabase() {
       current_semester: nextPreferences.current_semester || 1,
       bm_type: nextPreferences.bm_type || bmType || 'TAL',
       maturanote_goal: nextPreferences.maturanote_goal || 5.0,
+      tour_completed: nextPreferences.tour_completed || false,
       needsSemesterSetup: !preferences && !hasLocalSemester
     };
   }, [userId, userEmail, userName]);
@@ -153,7 +156,30 @@ export function useDatabase() {
     return goal;
   }, [userId]);
 
-  // ============================================
+  
+  // Update tour completed status
+  const updateTourCompleted = useCallback(async (completed) => {
+    if (!userId) {
+       storage.set('schulnetz_tour_completed', completed);
+       return completed;
+    }
+
+    console.log('💾 updateTourCompleted called', { userId, completed });
+    const { data, error: upsertError } = await supabase
+      .from('user_preferences')
+      .upsert([{ user_id: userId, tour_completed: completed }])
+      .select();
+
+    if (upsertError) {
+      console.error('❌ TourCompleted upsert error:', upsertError);
+      throw upsertError;
+    }
+    console.log('✅ TourCompleted upserted successfully:', data);
+
+    return completed;
+  }, [userId]);
+
+// ============================================
   // GRADES
   // ============================================
 
@@ -621,6 +647,7 @@ export function useDatabase() {
 
   return {
     loading,
+    updateTourCompleted,
     error,
     userId,
     syncUser,
