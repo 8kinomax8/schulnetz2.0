@@ -111,6 +111,7 @@ export default function GradeCard({
             placeholder="Note"
             value={newGrade}
             onChange={(e) => setNewGrade(e.target.value)}
+            onFocus={(e) => e.target.select()}
             className="w-20 p-2 border border-gray-300 rounded text-sm"
           />
           <input
@@ -118,6 +119,7 @@ export default function GradeCard({
             placeholder="Gewicht"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
+            onFocus={(e) => e.target.select()}
             className={`${hideWeightInput ? 'hidden' : 'w-10'} p-2 border border-gray-300 rounded text-sm text-center`}
           />
           <input

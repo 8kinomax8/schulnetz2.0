@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { Joyride, STATUS } from 'react-joyride';
-
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
 import { BM_SUBJECTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
 import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel } from './components';
@@ -88,17 +86,73 @@ export default function BMGradeCalculator() {
   const { user, authLoading, signOut } = useAuth();
 
   // ============ Application state ============
+  const [bmType, setBmType] = useState('TAL');
+  const [currentSemester, setCurrentSemester] = useState(1);
+  const [subjects, setSubjects] = useState({});
+  const [semesterGrades, setSemesterGrades] = useState({});
+  const [examSimulator, setExamSimulator] = useState({});
+  const [finalExamGrades, setFinalExamGrades] = useState({});
+  const [semesterPlans, setSemesterPlans] = useState({});
+  const [subjectGoals, setSubjectGoals] = useState({});
+  const [maturnoteGoal, setMaturnoteGoal] = useState(5.0);
+  const [mainTab, setMainTab] = useState('overview');
+  const [bmTab, setBmTab] = useState('current');
+  const [efzTab, setEfzTab] = useState('scan-sal');
+  const [showSemesterPrompt, setShowSemesterPrompt] = useState(false);
+  const [efzIsAnalyzing, setEfzIsAnalyzing] = useState(false);
+  const [efzAnalysisResult, setEfzAnalysisResult] = useState(null);
+
+  // Berufsschule (EFZ) state
+  const [moduleCatalog, setModuleCatalog] = useState([]);
+  const [moduleGrades, setModuleGrades] = useState({});
+  const [modulePlans, setModulePlans] = useState({});
+  const [moduleGoals, setModuleGoals] = useState({});
+  const [uekGrades, setUekGrades] = useState([]);
+  const [uekPlans, setUekPlans] = useState([]);
+  const [ipaGrade, setIpaGrade] = useState(null);
+  const [finalGoal, setFinalGoal] = useState(5.0);
+  const [uekGoal, setUekGoal] = useState(5.0);
+  const [newModuleCode, setNewModuleCode] = useState('');
+  const [newModuleName, setNewModuleName] = useState('');
+
+  // State for manual entry of old semester grades (BM)
+  const [bmManualSubject, setBmManualSubject] = useState('');
+  const [bmManualSemester, setBmManualSemester] = useState(1);
+  const [bmManualGrade, setBmManualGrade] = useState('');
+
+  // State for manual entry of old module averages (EFZ)
+  const [efzManualModuleId, setEfzManualModuleId] = useState('');
+  const [efzManualModuleAverage, setEfzManualModuleAverage] = useState('');
+  const [efzManualUekAverage, setEfzManualUekAverage] = useState('');
+  const [efzManualUekTheme, setEfzManualUekTheme] = useState('');
+  const [signOutPending, setSignOutPending] = useState(false);
+
+  // EFZ module editing
+
+  const [editingModuleCode, setEditingModuleCode] = useState(null);
+  const [editingModuleForm, setEditingModuleForm] = useState({ code: '', name: '' });
+
+  // ============ Custom hooks ============
+  const validSubjects = new Set(Object.keys(LEKTIONENTAFEL[bmType] || {}));
+
+  // Database hook
+  const database = useDatabase();
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
+  const { isTourCompleted, setIsTourCompleted } = database;
 
-  
+  // Run the tour when data is loaded
   useEffect(() => {
     // Both logged in (via isTourCompleted) OR not logged in (via localStorage)
     const localTourDone = localStorage.getItem('schulnetz_tour_completed') === 'true';
     if (dataLoaded) {
-       if ((user && !isTourCompleted) || (!user && !localTourDone)) {
-         setTimeout(() => { setMainTab('overview'); setRunTour(true); }, 1500);
+       if ((user && !isTourCompleted) && (!user && !localTourDone)) {
+         // Wait a bit to let UI render
+         setTimeout(() => { setRunTour(true); }, 1500);
+       } else if (!user && !localTourDone) {
+         setTimeout(() => { setRunTour(true); }, 1500);
        }
     }
   }, [user, dataLoaded, isTourCompleted]);
@@ -120,38 +174,327 @@ export default function BMGradeCalculator() {
   };
 
 
-  const tourSteps = [
-    {
-      target: '.tour-app-header',
-      content: 'Willkommen bei Schulnetz 2.0! Diese kurze Tour zeigt dir die wichtigsten Funktionen.',
-      disableBeacon: true,
-      placement: 'bottom',
-      title: 'Willkommen 👋'
-    },
-    {
-      target: '.tour-main-navigation',
-      content: 'Hier kannst du zwischen der Übersicht, der Berufsschule (EFZ) und der Berufsmaturität (BM) navigieren. Alle Räume sind separat.',
-      placement: 'bottom',
-    },
-    {
-      target: user ? '.tour-sync-status' : '.tour-app-header',
-      content: 'Dein Synchronisationsstatus. Wenn dieser grün leuchtet, sind alle deine Noten und Ziele sicher in der Cloud gespeichert.',
-      placement: 'bottom-end',
-    },
-    {
-      target: '.tour-averages',
-      content: 'Auf der Übersichtsseite siehst du direkt deine aktuellen Gesamtschnitte aus BM und Berufsschule.',
-      placement: 'bottom',
-    },
-    {
-      target: '.tour-settings',
-      content: 'Hier kannst du deinen BM-Typ und dein aktuelles Semester anpassen. Die Fächer laden sich automatisch mit dem passenden Lernplan!',
-      placement: 'top',
+  useEffect(() => {
+    if (!user) {
+      setDataLoaded(false);
     }
-  ];
+  }, [user]);
 
+  // Load data from database on login
+  useEffect(() => {
+    const loadFromDatabase = async () => {
+      console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId });
+      if (!user || dataLoaded || database.loading) return;
 
+      try {
+        // Sync user first
+        console.log('🔄 Syncing user...');
+        const userData = await database.syncUser(bmType);
+        console.log('✅ User synced:', userData);
+        if (userData) {
+          setBmType(userData.bm_type || 'TAL');
+          setCurrentSemester(userData.current_semester || 1);
+          setMaturnoteGoal(parseFloat(userData.maturanote_goal) || 5.0);
+          setShowSemesterPrompt(Boolean(userData.needsSemesterSetup));
+        }
 
+        // Load grades and convert to subjects format
+        console.log('📚 Loading grades...');
+        const grades = await database.getUserGrades();
+        console.log('📚 Grades loaded:', grades);
+        if (grades && grades.length > 0) {
+          const subjectsFromDb = {};
+          grades.forEach(g => {
+            if (!subjectsFromDb[g.subject_name]) {
+              subjectsFromDb[g.subject_name] = [];
+            }
+
+            // Parse weight as number and format without unnecessary decimals
+            const weight = parseFloat(g.weight);
+            const displayWeight = Number.isInteger(weight) ? weight.toString() : weight.toFixed(2).replace(/\.?0+$/, '');
+
+            subjectsFromDb[g.subject_name].push({
+              id: g.id,
+              grade: parseFloat(g.grade),
+              weight: weight,
+              displayWeight: displayWeight,
+              date: g.control_date ? sqlDateToSwiss(g.control_date) : '',
+              name: g.control_name
+            });
+          });
+          setSubjects(subjectsFromDb);
+        }
+
+        // Load semester grades
+        const semGrades = await database.getUserSemesterGrades();
+        if (semGrades && semGrades.length > 0) {
+          const semGradesFromDb = {};
+          semGrades.forEach(g => {
+            if (!semGradesFromDb[g.subject_name]) {
+              semGradesFromDb[g.subject_name] = {};
+            }
+            const semesterKey = String(g.semester_number || g.semester || '');
+            if (semesterKey) {
+              semGradesFromDb[g.subject_name][semesterKey] = parseFloat(g.grade);
+            }
+          });
+          setSemesterGrades(semGradesFromDb);
+        }
+
+        // Load semester plans
+        const plans = await database.getUserSemesterPlans();
+        if (plans && plans.length > 0) {
+          const plansFromDb = {};
+          plans.forEach(p => {
+            if (!plansFromDb[p.subject_name]) {
+              plansFromDb[p.subject_name] = [];
+            }
+            plansFromDb[p.subject_name].push({
+              id: p.id,
+              grade: parseFloat(p.planned_grade),
+              weight: parseFloat(p.weight)
+            });
+          });
+          setSemesterPlans(plansFromDb);
+        }
+
+        // Load subject goals
+        const goals = await database.getUserSubjectGoals();
+        if (goals && goals.length > 0) {
+          const goalsFromDb = {};
+          goals.forEach(g => {
+            goalsFromDb[g.subject_name] = parseFloat(g.target_grade);
+          });
+          setSubjectGoals(goalsFromDb);
+        }
+
+        // Load exam simulator
+        const exams = await database.getUserExamGrades();
+        const examsFromDb = {};
+        const finalExamsFromDb = {};
+        if (exams && exams.length > 0) {
+          exams.forEach(e => {
+            const simulatedGrade = parseFloat(e.simulated_grade);
+            const finalGrade = parseFloat(e.final_grade);
+            if (Number.isFinite(simulatedGrade)) {
+              examsFromDb[e.subject_name] = simulatedGrade;
+            }
+            if (Number.isFinite(finalGrade)) {
+              finalExamsFromDb[e.subject_name] = finalGrade;
+            }
+          });
+        }
+        setExamSimulator(examsFromDb);
+        setFinalExamGrades(finalExamsFromDb);
+
+        setDataLoaded(true);
+
+        // Load EFZ / Berufsschule data if available
+        try {
+          // Determine current semester from userData or state
+          const semesterForLoading = userData?.current_semester || currentSemester || 1;
+
+          // Load modules from current semester
+          console.log('🔍 Loading EFZ modules for semesters 1-' + semesterForLoading);
+
+          // Also load modules from all previous semesters for "Alte Zeugnisse"
+          const allModules = [];
+          for (let s = 1; s <= semesterForLoading; s++) {
+            try {
+              const semModules = await database.getUserEfzModules(s);
+              console.log(`📦 Semester ${s} modules:`, semModules?.length || 0);
+              if (semModules && semModules.length) {
+                allModules.push(...semModules);
+              }
+            } catch (err) {
+              console.warn(`⚠️ Failed to load modules for semester ${s}:`, err.message || err);
+            }
+          }
+
+          console.log(`✅ Total modules loaded: ${allModules.length}`);
+
+          if (allModules && allModules.length) {
+            // Map to local catalog with efz_id and semester
+            const catalog = allModules.map(m => ({
+              code: m.module_code,
+              name: m.name,
+              efz_id: m.id,
+              semester: m.semester
+            }));
+            setModuleCatalog(catalog);
+            console.log('📋 Module catalog set:', catalog);
+
+            // Load module grades per module
+            const gradesByModule = {};
+            for (const m of catalog) {
+              try {
+                const grades = await database.getEfzModuleGrades(m.efz_id);
+                console.log(`📊 Module ${m.code}: ${grades?.length || 0} grades`);
+                gradesByModule[m.code] = (grades || []).map(g => ({
+                  id: g.id,
+                  grade: parseFloat(g.grade),
+                  weight: parseFloat(g.weight || 1),
+                  displayWeight: g.weight ? String(g.weight) : '1',
+                  date: g.date ? sqlDateToSwiss(g.date) : '',
+                  name: g.control_name || ''
+                }));
+              } catch (err) {
+                console.warn(`⚠️ Failed to load grades for module ${m.code}:`, err.message || err);
+              }
+            }
+            setModuleGrades(gradesByModule);
+            console.log('✅ Module grades set:', gradesByModule);
+
+            // Save EFZ data to localStorage as backup
+            try {
+              const existing = storage.get('bm-calculator-data', {});
+              storage.set('bm-calculator-data', {
+                ...existing,
+                moduleCatalog: catalog,
+                moduleGrades: gradesByModule
+              });
+              console.log('💾 EFZ data saved to localStorage');
+            } catch (err) {
+              console.warn('⚠️ Failed to save EFZ data to localStorage:', err.message || err);
+            }
+          } else {
+            console.log('ℹ️ No modules found in database, trying localStorage...');
+            // Fallback to localStorage
+            try {
+              const saved = storage.get('bm-calculator-data', {});
+              if (saved.moduleCatalog && saved.moduleCatalog.length > 0) {
+                setModuleCatalog(saved.moduleCatalog);
+                setModuleGrades(saved.moduleGrades || {});
+                console.log('✅ EFZ data loaded from localStorage backup');
+              }
+            } catch (err) {
+              console.warn('⚠️ Failed to load EFZ data from localStorage:', err.message || err);
+            }
+          }
+
+          try {
+            const ueks = await database.getEfzUekGrades();
+            console.log(`📚 üK grades loaded: ${ueks?.length || 0}`);
+            if (ueks && ueks.length) {
+              setUekGrades(ueks.map(g => ({ id: g.id, grade: parseFloat(g.grade), weight: 1, displayWeight: '1', date: g.date ? sqlDateToSwiss(g.date) : '', name: g.name })));
+              // Save to localStorage
+              try {
+                const existing = storage.get('bm-calculator-data', {});
+                storage.set('bm-calculator-data', { ...existing, uekGrades: ueks });
+              } catch (err) {
+                console.warn('⚠️ Failed to save üK to localStorage:', err.message || err);
+              }
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to load üK grades:', err.message || err);
+            // Try localStorage
+            try {
+              const saved = storage.get('bm-calculator-data', {});
+              if (saved.uekGrades && saved.uekGrades.length > 0) {
+                setUekGrades(saved.uekGrades);
+                console.log('✅ üK grades loaded from localStorage');
+              }
+            } catch (err) {
+              console.warn('⚠️ Failed to load üK from localStorage:', err.message || err);
+            }
+          }
+
+          try {
+            const ipas = await database.getEfzIpa();
+            console.log(`🎓 IPA grades loaded: ${ipas?.length || 0}`);
+            if (ipas && ipas.length) {
+              // take latest final if exists
+              const final = ipas.find(i => i.is_final) || ipas[0];
+              if (final) setIpaGrade(parseFloat(final.grade));
+              // Save to localStorage
+              try {
+                const existing = storage.get('bm-calculator-data', {});
+                storage.set('bm-calculator-data', { ...existing, ipaGrade: parseFloat(final?.grade) });
+              } catch (err) {
+                console.warn('⚠️ Failed to save IPA to localStorage:', err.message || err);
+              }
+            }
+          } catch (err) {
+            console.warn('⚠️ Failed to load IPA grade:', err.message || err);
+            // Try localStorage
+            try {
+              const saved = storage.get('bm-calculator-data', {});
+              if (Number.isFinite(saved.ipaGrade)) {
+                setIpaGrade(saved.ipaGrade);
+                console.log('✅ IPA grade loaded from localStorage');
+              }
+            } catch (err) {
+              console.warn('⚠️ Failed to load IPA from localStorage:', err.message || err);
+            }
+          }
+        } catch (err) {
+          console.error('❌ EFZ load error:', err);
+        }
+      } catch (err) {
+        console.error('Error loading data from database:', err);
+        // Fallback to localStorage
+        setDataLoaded(true);
+      }
+    };
+
+    loadFromDatabase();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, dataLoaded, database]);
+
+  // Fallback: Load from localStorage if not logged in
+  useLoadData({
+    setSubjects,
+    setSemesterGrades,
+    setBmType,
+    setCurrentSemester,
+    setSemesterPlans,
+    setSubjectGoals,
+    setMaturnoteGoal,
+    setModuleCatalog,
+    setModuleGrades,
+    setModulePlans,
+    setModuleGoals,
+    setUekGrades,
+    setUekPlans,
+    setIpaGrade,
+    setFinalGoal,
+    setUekGoal,
+    setFinalExamGrades
+  }, !authLoading && !user);
+
+  // Auto-save to localStorage (backup)
+  useSaveData({
+    subjects,
+    semesterGrades,
+    bmType,
+    currentSemester,
+    semesterPlans,
+    subjectGoals,
+    maturnoteGoal,
+    moduleCatalog,
+    moduleGrades,
+    modulePlans,
+    moduleGoals,
+    uekGrades,
+    uekPlans,
+    ipaGrade,
+    finalGoal,
+    uekGoal,
+    finalExamGrades
+  });
+
+  const normalizeNumber = (value, fallback = null) => {
+    if (value === null || value === undefined || value === '') return fallback;
+    const cleaned = String(value).replace(',', '.');
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const normalizeSemesterValue = (value, fallback) => {
+    const parsed = parseInt(value, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+    return parsed;
+  };
   const clampGrade = (value) => {
     const n = normalizeNumber(value);
     if (n === null) return null;
@@ -670,7 +1013,7 @@ export default function BMGradeCalculator() {
   };
 
   const addModule = async () => {
-    const code = newModuleCode.trim().toUpperCase();
+    const code = normalizeModuleCode(newModuleCode);
     const name = newModuleName.trim();
     if (!code) return;
 
@@ -987,7 +1330,7 @@ export default function BMGradeCalculator() {
   };
 
   const addEfzManualModuleAverage = async () => {
-    const moduleId = (efzManualModuleId || '').trim();
+    const moduleId = normalizeModuleCode(efzManualModuleId);
     const normalizedAverage = clampGrade(efzManualModuleAverage);
 
     if (!moduleId || normalizedAverage === null) {
@@ -997,7 +1340,8 @@ export default function BMGradeCalculator() {
     // Find or create the module
     let moduleEntry = moduleCatalog.find(m => m.code === moduleId);
     if (!moduleEntry) {
-      setModuleCatalog(prev => [...prev, { code: moduleId, name: '', efz_id: null }]);
+      const fallbackSemester = Math.max(1, currentSemester - 1);
+      setModuleCatalog(prev => ([...prev, { code: moduleId, name: '', efz_id: null, semester: fallbackSemester }]));
     }
 
     // Add as single "grade" with weight 1 (represents the average)
@@ -1108,7 +1452,9 @@ export default function BMGradeCalculator() {
 
   const isEfzPreviousOnly = (moduleCode) => {
     const moduleEntry = moduleCatalog.find(m => m.code === moduleCode);
-    return moduleEntry && moduleEntry.semester < currentSemester;
+    if (!moduleEntry) return false;
+    const semesterValue = normalizeSemesterValue(moduleEntry.semester, currentSemester);
+    return semesterValue < currentSemester;
   };
 
   const efzCurrentModules = moduleListAll.filter(m => !isEfzPreviousOnly(m.code));
@@ -1140,35 +1486,12 @@ export default function BMGradeCalculator() {
   // ============ Render ============
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
-
-      <Joyride
-        steps={tourSteps}
-        run={runTour}
-        continuous={true}
-        showProgress={true}
-        showSkipButton={true}
-        callback={handleJoyrideCallback}
-        styles={{
-          options: {
-            primaryColor: '#4f46e5',
-            zIndex: 10000,
-          }
-        }}
-        locale={{
-          back: 'Zurück',
-          close: 'Schliessen',
-          last: 'Fertig',
-          next: 'Weiter',
-          skip: 'Überspringen'
-        }}
-      />
-
       <div className="max-w-7xl mx-auto px-2 sm:px-4">
         {/* Header */}
         <header className="bg-white rounded-2xl shadow-xl px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-gray-100">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="tour-app-header text-2xl sm:text-3xl font-bold text-indigo-900 flex items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-bold text-indigo-900 flex items-center gap-3">
                 Schulnetz 2.0
               </h1>
               {user && (
@@ -1179,7 +1502,7 @@ export default function BMGradeCalculator() {
             </div>
             <div className="flex flex-col items-end gap-3 flex-shrink-0">
               {user && (
-                <div className="tour-sync-status inline-flex items-center justify-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-full font-medium">
+                <div className="inline-flex items-center justify-center gap-2 text-sm text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-full font-medium">
                   <div className={`w-2 h-2 rounded-full animate-pulse ${(database.userId && database.loading === false)
                     ? 'bg-green-500'
                     : 'bg-red-500'
@@ -1207,8 +1530,7 @@ export default function BMGradeCalculator() {
         {/* Main pages */}
         <div className="bg-white rounded-2xl shadow-xl p-4 sm:p-6 border border-gray-100 overflow-visible">
           {/* Mobile: Main page dropdown */}
-          <div className="tour-main-navigation w-full">
-            <div className="sm:hidden mb-6">
+          <div className="sm:hidden mb-6">
             <select
               value={mainTab}
               onChange={(e) => setMainTab(e.target.value)}
@@ -1222,7 +1544,7 @@ export default function BMGradeCalculator() {
           </div>
 
           {/* Desktop: Main page buttons */}
-          <div className="tour-main-tabs hidden sm:flex gap-2 mb-8 justify-center flex-wrap">
+          <div className="hidden sm:flex gap-2 mb-8 justify-center flex-wrap">
             <button
               onClick={() => setMainTab('overview')}
               className={`px-4 py-2.5 rounded-xl font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-2 ${mainTab === 'overview'
@@ -1256,13 +1578,12 @@ export default function BMGradeCalculator() {
               BM
             </button>
           </div>
-          </div>
 
           {/* Page 1: Overview */}
           {mainTab === 'overview' && (
             <div>
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Übersicht und Einstellungen</h2>
-              <div className="tour-averages grid lg:grid-cols-2 gap-6 mb-6">
+              <div className="grid lg:grid-cols-2 gap-6 mb-6">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
                   <div className="text-xs text-indigo-700 mb-1">BM</div>
                   <div className="text-3xl font-bold text-indigo-900">{formatAverage(bmCurrentAverage, bmCurrentExactAverage)}</div>
@@ -1276,7 +1597,7 @@ export default function BMGradeCalculator() {
                 </div>
               </div>
 
-              <div className="tour-settings grid lg:grid-cols-2 gap-4 mb-6">
+              <div className="grid lg:grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">BM-Typ</label>
                   <select
@@ -2267,15 +2588,19 @@ export default function BMGradeCalculator() {
           Made with ❤️ by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
         </footer>
 
+        {/* Floating Help Button to Restart Tour */}
         <button
-          onClick={() => { setMainTab('overview'); setRunTour(true); }}
-          className="fixed bottom-6 right-6 w-12 h-12 bg-indigo-600 outline-none text-white rounded-full flex items-center justify-center shadow-2xl hover:bg-indigo-700 transition-all z-50 focus:ring-4 ring-indigo-300"
-          title="Tutoriel starten"
+          onClick={() => { setRunTour(true); window.scrollTo(0,0); }}
+          className="fixed bottom-6 right-6 w-12 h-12 bg-purple-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-purple-700 transition shadow-purple-500/30 z-[9000]"
+          title="Relancer le tutoriel"
         >
-          <span className="font-bold text-xl">?</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinelinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
         </button>
       </div>
     </div>
-
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { roundToHalfOrWhole } from '../services/calculationService';
 
@@ -20,6 +20,14 @@ export default function SemesterSimulatorCard({
   const [grade, setGrade] = useState('');
   const [weight, setWeight] = useState('1');
   const [assumedWeight, setAssumedWeight] = useState('1');
+  const [goalInput, setGoalInput] = useState(() => (
+    Number.isFinite(goalGrade) ? String(goalGrade) : ''
+  ));
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- keep input in sync with prop updates
+    setGoalInput(Number.isFinite(goalGrade) ? String(goalGrade) : '');
+  }, [goalGrade]);
 
   const parseWeight = (w) => {
     if (typeof w !== 'string') return parseFloat(w);
@@ -60,15 +68,20 @@ export default function SemesterSimulatorCard({
               step="0.5"
               min="1"
               max="6"
-              value={goalGrade}
-              onChange={(e) => {
-                const value = parseFloat(e.target.value);
-                if (!isNaN(value)) {
-                  // Clamp between 1 and 6, then round to nearest 0.5
-                  const clamped = Math.min(6, Math.max(1, value));
-                  const rounded = roundToHalfOrWhole(clamped);
-                  onGoalChange(rounded);
+              value={goalInput}
+              onChange={(e) => setGoalInput(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => {
+                const raw = goalInput.trim();
+                const value = parseFloat(raw.replace(',', '.'));
+                if (!raw || !Number.isFinite(value)) {
+                  setGoalInput(Number.isFinite(goalGrade) ? String(goalGrade) : '');
+                  return;
                 }
+                const clamped = Math.min(6, Math.max(1, value));
+                const rounded = roundToHalfOrWhole(clamped);
+                onGoalChange(rounded);
+                setGoalInput(String(rounded));
               }}
               className="w-16 p-1 border border-indigo-300 rounded text-sm font-bold text-center"
             />
@@ -106,6 +119,7 @@ export default function SemesterSimulatorCard({
               type="text"
               value={assumedWeight}
               onChange={(e) => setAssumedWeight(e.target.value)}
+              onFocus={(e) => e.target.select()}
               className="w-20 p-1 border border-gray-300 rounded text-xs"
             />
           </div>
@@ -131,6 +145,7 @@ export default function SemesterSimulatorCard({
             placeholder="Note"
             value={grade}
             onChange={(e) => setGrade(e.target.value)}
+            onFocus={(e) => e.target.select()}
             className="flex-1 p-2 border border-gray-300 rounded text-sm"
           />
           <input
@@ -138,6 +153,7 @@ export default function SemesterSimulatorCard({
             placeholder="Gewicht"
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
+            onFocus={(e) => e.target.select()}
             className="w-24 p-2 border border-gray-300 rounded text-sm"
           />
           <button
