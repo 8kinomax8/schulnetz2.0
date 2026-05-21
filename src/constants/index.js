@@ -1,1 +1,1 @@
-export { BM_SUBJECTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './subjects';
+export { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './subjects';

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
 import { Joyride, STATUS } from 'react-joyride';
-import { BM_SUBJECTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
+import { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
 import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel } from './components';
 import AccountSettings from './components/AccountSettings';
 import {
@@ -44,6 +44,47 @@ const sqlDateToSwiss = (sqlDate) => {
   if (!day || !month || !year) return '';
 
   return `${day}.${month}.${year}`;
+};
+
+const getStoredExamInputValue = (store, subject, componentKey = null) => {
+  const value = store?.[subject];
+  if (componentKey && value && typeof value === 'object' && !Array.isArray(value)) {
+    return value[componentKey] || '';
+  }
+  return !componentKey && Number.isFinite(value) ? value : '';
+};
+
+const setStoredExamInputValue = (store, setStore, subject, componentKey, rawValue) => {
+  const value = parseFloat(rawValue);
+  if (rawValue === '') {
+    if (componentKey) {
+      const nextSubjectValue = { ...(store[subject] || {}) };
+      delete nextSubjectValue[componentKey];
+      setStore({ ...store, [subject]: nextSubjectValue });
+    } else {
+      setStore({ ...store, [subject]: '' });
+    }
+    return;
+  }
+
+  if (value >= 1 && value <= 6) {
+    if (componentKey) {
+      setStore({
+        ...store,
+        [subject]: {
+          ...(store[subject] && typeof store[subject] === 'object' ? store[subject] : {}),
+          [componentKey]: value
+        }
+      });
+    } else {
+      setStore({ ...store, [subject]: value });
+    }
+  }
+};
+
+const clampExamValue = (rawValue) => {
+  const value = parseFloat(rawValue);
+  return Number.isFinite(value) ? Math.min(6, Math.max(1, value)) : null;
 };
 
 const AuthBackdrop = ({ children, contentClassName = 'w-full max-w-xl' }) => (
@@ -1255,10 +1296,17 @@ export default function BMGradeCalculator() {
     const baseGrades = subjects[subject] || [];
     const planned = (semesterPlans[subject] || []).map(p => ({
       grade: parseFloat(p.grade),
-      weight: parseFloat(p.weight)
+      weight: calculations.parseWeight(p.weight ?? 1)
     }));
-    const all = [...baseGrades, ...planned];
+    const all = [...baseGrades, ...planned]
+      .map(g => ({
+        grade: parseFloat(g.grade),
+        weight: calculations.parseWeight(g.weight ?? 1)
+      }))
+      .filter(g => Number.isFinite(g.grade) && Number.isFinite(g.weight) && g.weight > 0);
     if (all.length === 0) return null;
+    const parsedAssumedWeight = calculations.parseWeight(assumedWeight);
+    if (!Number.isFinite(parsedAssumedWeight) || parsedAssumedWeight <= 0) return null;
 
     // Convert rounded goal to real goal (e.g.: 6 → 5.75, 5 → 4.75)
     // This ensures the raw average rounds UP to the target when rounded to nearest 0.5
@@ -1266,7 +1314,7 @@ export default function BMGradeCalculator() {
 
     const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
     const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
-    const required = (realTarget * (currentTotalWeight + assumedWeight) - currentSum) / assumedWeight;
+    const required = (realTarget * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
     
     // Clamp result to valid grade range [1.0, 6.0]
     return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
@@ -2646,34 +2694,57 @@ export default function BMGradeCalculator() {
                         />
                       </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-sm text-gray-600 mb-1">Aktueller Durchschnitt</div>
-                        <div className={`text-3xl font-bold ${calculations.getOverallAverage() && calculations.getOverallAverage() < 4.0
-                          ? 'text-red-700'
-                          : 'text-blue-700'
-                          }`}>
-                          {calculations.getOverallAverage()?.toFixed(1) || '-'}
-                        </div>
-                        {calculations.getOverallAverage() && calculations.getOverallAverage() < 4.0 && (
-                          <div className="text-xs text-red-600 font-semibold mt-1">⚠️ Unter 4.0</div>
-                        )}
-                      </div>
-                      {calculations.getOverallAverage() && (
-                        <div className={`px-4 py-2 rounded-lg font-semibold ${calculations.getOverallAverage() < 4.0
-                          ? 'bg-red-100 text-red-800'
-                          : calculations.getOverallAverage() >= maturnoteGoal
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-orange-100 text-orange-800'
-                          }`}>
-                          {calculations.getOverallAverage() < 4.0
-                            ? `⚠️ Kritisch: ${(4.0 - calculations.getOverallAverage()).toFixed(1)} Punkte fehlen`
-                            : calculations.getOverallAverage() >= maturnoteGoal
-                              ? '✅ Ziel erreicht!'
-                              : `📊 ${(maturnoteGoal - calculations.getOverallAverage()).toFixed(1)} Punkte offen`
-                          }
-                        </div>
-                      )}
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                      {(() => {
+                        const certStatus = calculations.getFinalCertificationStatus();
+                        const hasAverage = certStatus.average !== null;
+                        
+                        return (
+                          <>
+                            <div>
+                              <div className="text-sm text-gray-600 mb-1">Aktueller Durchschnitt</div>
+                              <div className={`text-4xl font-bold ${hasAverage && certStatus.average < 4.0
+                                ? 'text-red-700'
+                                : 'text-blue-700'
+                                }`}>
+                                {hasAverage ? certStatus.average.toFixed(1) : '-'}
+                              </div>
+                            </div>
+
+                            {hasAverage && (
+                              <div className="flex-1 bg-white/60 p-4 rounded-lg border border-white">
+                                <div className="text-sm font-semibold mb-2 text-gray-800">
+                                  Bestehensnormen (BM)
+                                  {!certStatus.hasAllNotes && <span className="text-xs font-normal text-gray-500 ml-2">(Vorläufig - nicht alle Noten vorhanden)</span>}
+                                </div>
+                                <div className="space-y-1 text-sm">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Gesamtnote ≥ 4.0:</span>
+                                    <span className={`font-medium ${certStatus.conditions.averageOk ? 'text-green-600' : 'text-red-600'}`}>
+                                      {certStatus.average.toFixed(1)} {certStatus.conditions.averageOk ? '✅' : '❌'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Max. 2 ungenügende Noten:</span>
+                                    <span className={`font-medium ${certStatus.conditions.insufficientOk ? 'text-green-600' : 'text-red-600'}`}>
+                                      {certStatus.insufficientCount} {certStatus.conditions.insufficientOk ? '✅' : '❌'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-gray-600">Notenabweichung ≤ 2.0:</span>
+                                    <span className={`font-medium ${certStatus.conditions.deficitOk ? 'text-green-600' : 'text-red-600'}`}>
+                                      {certStatus.deficit.toFixed(1)} {certStatus.conditions.deficitOk ? '✅' : '❌'}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className={`mt-3 p-2 text-center font-bold rounded ${certStatus.isPassed ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                  {certStatus.isPassed ? '🎉 Diplom bestanden!' : '⚠️ Diplom nicht bestanden'}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -2688,8 +2759,12 @@ export default function BMGradeCalculator() {
                       const simulatedExamGrade = examSimulator[subject];
                       const definitiveExamGrade = finalExamGrades[subject];
                       const maturnote = calculations.getExamAverage(subject);
-                      // Use the entered goal directly (to the tenth)
                       const requiredExam = calculations.getRequiredExamGrade(subject, maturnoteGoal);
+                      const isExamSubject = EXAM_SUBJECTS[bmType].includes(subject);
+                      const isInterdisciplinary = BM_SUBJECTS[bmType].interdisziplinar.includes(subject);
+                      const hasFinalInput = isExamSubject || isInterdisciplinary;
+                      const simulatedLabel = isInterdisciplinary ? 'Simulierte IDPA-Projektnote' : 'Simulierte Abschlussprüfungsnote';
+                      const definitiveLabel = isInterdisciplinary ? 'Definitive IDPA-Projektnote' : 'Definitive Abschlussprüfungsnote';
 
                       return (
                         <div key={subject} className="border-2 border-green-200 rounded-lg p-4 bg-gradient-to-r from-green-50 to-emerald-50">
@@ -2700,74 +2775,78 @@ export default function BMGradeCalculator() {
                               <span className="text-gray-600">Erfahrungsnote:</span>
                               <div className="font-bold text-lg">{erfahrungsnote?.toFixed(1) || '-'}</div>
                             </div>
-                            <div>
-                              <span className="text-gray-600">Benötigte Note:</span>
-                              <div className="font-bold text-lg text-blue-600">
-                                {requiredExam?.toFixed(1) || '-'}
+                            {hasFinalInput && (
+                              <div>
+                                <span className="text-gray-600">Benötigte Note:</span>
+                                <div className="font-bold text-lg text-blue-600">
+                                  {requiredExam?.toFixed(1) || '-'}
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
 
-                          <div className="grid gap-3 sm:grid-cols-2 mb-3">
-                            <div>
-                              <label className="block text-xs text-gray-700 mb-1">Simulierte Abschlussprüfungsnote</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="1"
-                                max="6"
-                                value={simulatedExamGrade || ''}
-                                onChange={(e) => {
-                                  const value = parseFloat(e.target.value);
-                                  if (value >= 1 && value <= 6) {
-                                    setExamSimulator({ ...examSimulator, [subject]: value });
-                                  } else if (e.target.value === '') {
-                                    setExamSimulator({ ...examSimulator, [subject]: '' });
-                                  }
-                                }}
-                                onBlur={async (e) => {
-                                  const value = parseFloat(e.target.value);
-                                  if (Number.isFinite(value)) {
-                                    const clamped = Math.min(6, Math.max(1, value));
-                                    setExamSimulator({ ...examSimulator, [subject]: clamped });
-                                    if (user && database.userId && database.setExamGrade) {
-                                      await database.setExamGrade(subject, clamped).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
+                          {hasFinalInput && (
+                            <div className="grid gap-3 sm:grid-cols-2 mb-3">
+                              <div>
+                                <label className="block text-xs text-gray-700 mb-1">{simulatedLabel}</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="1"
+                                  max="6"
+                                  value={simulatedExamGrade || ''}
+                                  onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (value >= 1 && value <= 6) {
+                                      setExamSimulator({ ...examSimulator, [subject]: value });
+                                    } else if (e.target.value === '') {
+                                      setExamSimulator({ ...examSimulator, [subject]: '' });
                                     }
-                                  }
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-gray-700 mb-1">Definitive Abschlussprüfungsnote</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="1"
-                                max="6"
-                                value={definitiveExamGrade || ''}
-                                onChange={(e) => {
-                                  const value = parseFloat(e.target.value);
-                                  if (value >= 1 && value <= 6) {
-                                    setFinalExamGrades({ ...finalExamGrades, [subject]: value });
-                                  } else if (e.target.value === '') {
-                                    setFinalExamGrades({ ...finalExamGrades, [subject]: '' });
-                                  }
-                                }}
-                                onBlur={async (e) => {
-                                  const value = parseFloat(e.target.value);
-                                  if (Number.isFinite(value)) {
-                                    const clamped = Math.min(6, Math.max(1, value));
-                                    setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
-                                    if (user && database.userId && database.setFinalExamGrade) {
-                                      await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
+                                  }}
+                                  onBlur={async (e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (Number.isFinite(value)) {
+                                      const clamped = Math.min(6, Math.max(1, value));
+                                      setExamSimulator({ ...examSimulator, [subject]: clamped });
+                                      if (user && database.userId && database.setExamGrade) {
+                                        await database.setExamGrade(subject, clamped).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
+                                      }
                                     }
-                                  }
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded"
-                              />
+                                  }}
+                                  className="w-full p-2 border border-gray-300 rounded"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-700 mb-1">{definitiveLabel}</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="1"
+                                  max="6"
+                                  value={definitiveExamGrade || ''}
+                                  onChange={(e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (value >= 1 && value <= 6) {
+                                      setFinalExamGrades({ ...finalExamGrades, [subject]: value });
+                                    } else if (e.target.value === '') {
+                                      setFinalExamGrades({ ...finalExamGrades, [subject]: '' });
+                                    }
+                                  }}
+                                  onBlur={async (e) => {
+                                    const value = parseFloat(e.target.value);
+                                    if (Number.isFinite(value)) {
+                                      const clamped = Math.min(6, Math.max(1, value));
+                                      setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
+                                      if (user && database.userId && database.setFinalExamGrade) {
+                                        await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
+                                      }
+                                    }
+                                  }}
+                                  className="w-full p-2 border border-gray-300 rounded"
+                                />
+                              </div>
                             </div>
-                          </div>
+                          )}
 
                           {maturnote && (
                             <div className="bg-white rounded p-3 text-center">

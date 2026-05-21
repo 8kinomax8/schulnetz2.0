@@ -40,8 +40,8 @@ export const roundToTenth = (value) => {
  * @returns {number|null} Moyenne arrondie ou null
  */
 export const calculateSemesterAverage = (grades) => {
-  const avg = calculateWeightedAverage(grades);
-  return avg ? roundToHalfOrWhole(avg) : null;
+  const avg = calculateWeightedAverage(normalizeWeightedGrades(grades));
+  return avg === null ? null : roundToHalfOrWhole(avg);
 };
 
 /**
@@ -65,13 +65,17 @@ export const calculateErfahrungsnote = (semesterGrades) => {
  * @returns {number|null} Note requise ou null
  */
 export const calculateRequiredGrade = (currentGrades, targetAverage, nextWeight = 1) => {
-  if (!currentGrades || currentGrades.length === 0) return null;
+  const normalizedGrades = normalizeWeightedGrades(currentGrades);
+  if (normalizedGrades.length === 0) return null;
+
+  const parsedNextWeight = parseWeight(nextWeight);
+  if (!Number.isFinite(parsedNextWeight) || parsedNextWeight <= 0) return null;
   
-  const currentTotalWeight = currentGrades.reduce((sum, g) => sum + g.weight, 0);
-  const totalWeight = currentTotalWeight + nextWeight;
-  const currentSum = currentGrades.reduce((sum, g) => sum + (g.grade * g.weight), 0);
+  const currentTotalWeight = normalizedGrades.reduce((sum, g) => sum + g.weight, 0);
+  const totalWeight = currentTotalWeight + parsedNextWeight;
+  const currentSum = normalizedGrades.reduce((sum, g) => sum + (g.grade * g.weight), 0);
   
-  return (targetAverage * totalWeight - currentSum) / nextWeight;
+  return (targetAverage * totalWeight - currentSum) / parsedNextWeight;
 };
 
 /**
@@ -102,10 +106,7 @@ export const calculateRequiredWeightedGrade = (currentGrades, targetAverage, nex
  * @returns {number|null} Moyenne simulée
  */
 export const simulateAverage = (currentGrades, plannedControls) => {
-  const allGrades = [
-    ...(currentGrades || []),
-    ...(plannedControls || []).map(p => ({ grade: parseFloat(p.grade), weight: parseFloat(p.weight) }))
-  ];
+  const allGrades = normalizeWeightedGrades([...(currentGrades || []), ...(plannedControls || [])]);
   return calculateWeightedAverage(allGrades);
 };
 
@@ -191,6 +192,55 @@ const normalizeWeightedGrades = (grades) => {
 };
 
 // normalizeGrades removed (unused)
+
+/**
+ * Calcule la note d'Abschlussprüfung pour Naturwissenschaften (Chimie + Physique)
+ * Formule d'après D1077 V5 : N_NW = ((P_Ch · 0.5 + P_Ph) · 5) / 150 + 1.
+ * Si l'UI fournit déjà des notes suisses (1-6), cela revient à une moyenne
+ * pondérée 0.5:1 entre Chimie et Physique.
+ */
+export const calculateNaturwissenschaftExamGrade = (chemieGrade, physiqueGrade) => {
+  const ch = parseFloat(chemieGrade);
+  const ph = parseFloat(physiqueGrade);
+
+  if (!Number.isFinite(ch) || !Number.isFinite(ph)) return null;
+  if (ch < 1 || ch > 6 || ph < 1 || ph > 6) return null;
+
+  return roundToHalfOrWhole(((0.5 * ch) + ph) / 1.5);
+};
+
+/**
+ * Maturprüfungsnote = moyenne des Abschlussprüfungen d'une branche,
+ * puis arrondie au demi-point.
+ */
+export const calculateMaturExamGrade = (examGrades) => {
+  const values = (examGrades || [])
+    .map((grade) => parseFloat(grade))
+    .filter(Number.isFinite);
+  if (values.length === 0) return null;
+  const avg = values.reduce((sum, grade) => sum + grade, 0) / values.length;
+  return roundToHalfOrWhole(avg);
+};
+
+/**
+ * Maturnote Fach = (Erfahrungsnote + Maturprüfungsnote) / 2,
+ * puis arrondie au demi-point.
+ */
+export const calculateMaturnoteWithExam = (erfahrungsnote, examGrade) => {
+  const erf = parseFloat(erfahrungsnote);
+  const exam = parseFloat(examGrade);
+  if (!Number.isFinite(erf) || !Number.isFinite(exam)) return null;
+  return roundToHalfOrWhole((erf + exam) / 2);
+};
+
+/**
+ * Gesamtnote BM: moyenne de toutes les notes comptantes, arrondie au dixième.
+ */
+export const calculateBmOverallAverage = (maturnotes) => {
+  const values = (maturnotes || []).map(Number).filter(Number.isFinite);
+  if (values.length === 0) return null;
+  return roundToTenth(values.reduce((sum, value) => sum + value, 0) / values.length);
+};
 
 /**
  * Calcule la moyenne d'un module (ponderee) et arrondit au demi-point
@@ -318,4 +368,52 @@ export const calculateFinalGrade = (schoolPart, ipaGrade) => {
 export const calculateRequiredIpa = (targetFinal, schoolPart) => {
   if (!Number.isFinite(targetFinal) || !Number.isFinite(schoolPart)) return null;
   return (targetFinal * 2) - schoolPart;
+};
+
+/**
+ * Calcule le statut de réussite du certificat final (Bestehen) sur la base des notes de maturité.
+ * Les règles de réussite nécessitent 9 notes comptantes.
+ * @param {number[]} maturnotes - Tableau des notes de maturité finales (arrondies à 0.5)
+ * @returns {Object} Statut de réussite
+ */
+export const calculateFinalCertificationStatus = (maturnotes) => {
+  const validNotes = (maturnotes || []).filter(Number.isFinite);
+  
+  if (validNotes.length === 0) {
+    return { average: null, deficit: null, insufficientCount: null, isPassed: null };
+  }
+
+  // Gesamtnote: Moyenne arithmétique arrondie à 0.1
+  const sum = validNotes.reduce((acc, grade) => acc + grade, 0);
+  const average = roundToTenth(sum / validNotes.length);
+
+  // Nombre de notes insuffisantes (< 4.0)
+  const insufficientCount = validNotes.filter(grade => grade < 4.0).length;
+
+  // Somme des écarts par rapport à 4.0
+  const deficit = validNotes.reduce((acc, grade) => {
+    return grade < 4.0 ? acc + (4.0 - grade) : acc;
+  }, 0);
+
+  // Conditions de réussite
+  const condition1 = average >= 4.0;
+  const condition2 = insufficientCount <= 2;
+  const condition3 = deficit <= 2.0;
+  
+  // Normalement l'étudiant doit avoir exactement 9 notes pour que ce soit officiel,
+  // mais on donne le résultat sur les notes actuelles s'il y en a.
+  const isPassed = condition1 && condition2 && condition3;
+
+  return {
+    average,
+    deficit: parseFloat(deficit.toFixed(1)),
+    insufficientCount,
+    isPassed,
+    hasAllNotes: validNotes.length === 9,
+    conditions: {
+      averageOk: condition1,
+      insufficientOk: condition2,
+      deficitOk: condition3
+    }
+  };
 };

@@ -52,8 +52,8 @@ export default function SemesterSimulatorCard({
   };
 
   // eslint-disable-next-line no-unused-vars
-  const totalCurrentWeight = currentGrades.reduce((sum, g) => sum + g.weight, 0);
-  const totalPlannedWeight = (plannedControls || []).reduce((sum, p) => sum + parseFloat(p.weight), 0);
+  const totalCurrentWeight = currentGrades.reduce((sum, g) => sum + parseWeight(g.weight ?? 1), 0);
+  const totalPlannedWeight = (plannedControls || []).reduce((sum, p) => sum + parseWeight(p.weight ?? 1), 0);
   const requiredWithPlans = computeRequired(parseWeight(assumedWeight));
 
   return (
