@@ -132,7 +132,15 @@ export default function BMGradeCalculator() {
 
   // ============ Application state ============
   const [bmType, setBmType] = useState('TAL');
-  const [currentSemester, setCurrentSemester] = useState(1);
+  const [currentSemester, setCurrentSemester] = useState(() => {
+    // Restore semester from localStorage on mount
+    try {
+      const saved = localStorage.getItem('currentSemester');
+      return saved ? parseInt(saved, 10) : 1;
+    } catch {
+      return 1;
+    }
+  });
   const [subjects, setSubjects] = useState({});
   const [semesterGrades, setSemesterGrades] = useState({});
   const [examSimulator, setExamSimulator] = useState({});
@@ -187,35 +195,41 @@ export default function BMGradeCalculator() {
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
-  const [isTourCompleted, setIsTourCompleted] = useState(false);
+  const [isTourCompleted, setIsTourCompleted] = useState(() => {
+    // Restore tour completion status from localStorage on mount
+    return localStorage.getItem('schulnetz_tour_completed') === 'true';
+  });
   const tourDecisionMade = useRef(false); // Use ref to persist across page reloads
+
+  // Mark tour as decided if already completed (from localStorage)
+  useEffect(() => {
+    if (isTourCompleted) {
+      tourDecisionMade.current = true;
+    }
+  }, [isTourCompleted]);
 
   // Run the tour ONCE when data is loaded (only on first login/visit)
   useEffect(() => {
-    const localTourDone = localStorage.getItem('schulnetz_tour_completed') === 'true';
-    
-    console.log('🔄 Joyride check:', { dataLoaded, user: !!user, isTourCompleted, localTourDone, decisionMade: tourDecisionMade.current });
+    console.log('🔄 Joyride check:', { dataLoaded, user: !!user, isTourCompleted, decisionMade: tourDecisionMade.current });
 
     // Only launch tour if:
     // 1. Data has loaded (user is ready)
     // 2. We haven't made a decision about the tour yet
-    if (dataLoaded && !tourDecisionMade.current) {
-      // The tour is completed if it is marked as completed in the DB OR in localStorage
-      const isCompleted = isTourCompleted || localTourDone;
-      const shouldLaunchTour = !isCompleted;
-      
-      console.log('🚀 Joyride decision:', { shouldLaunchTour, isCompleted });
+    // 3. Tour is not completed (from localStorage or DB)
+    if (dataLoaded && !tourDecisionMade.current && !isTourCompleted) {
+      console.log('🚀 Joyride decision: launching tour');
 
       tourDecisionMade.current = true; // Mark decision made - NEVER evaluate this again in this session
       
-      if (shouldLaunchTour) {
-        // Wait a bit to let UI render
-        setTimeout(() => {
-          setRunTour(true);
-        }, 1500);
-      }
+      // Wait a bit to let UI render
+      setTimeout(() => {
+        setRunTour(true);
+      }, 1500);
     }
   }, [dataLoaded, user, isTourCompleted]);
+
+  // Ref to track if initial data load has been attempted
+  const initialLoadAttempted = useRef(false);
 
   const handleJoyrideCallback = async (data) => {
     const { status } = data;
@@ -237,14 +251,18 @@ export default function BMGradeCalculator() {
   useEffect(() => {
     if (!user) {
       setDataLoaded(false);
+      initialLoadAttempted.current = false;
     }
   }, [user]);
 
   // Load data from database on login
   useEffect(() => {
     const loadFromDatabase = async () => {
-      console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId });
-      if (!user || dataLoaded || database.loading) return;
+      console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId, authLoading, attempted: initialLoadAttempted.current });
+      if (authLoading || !user || dataLoaded || database.loading || initialLoadAttempted.current) return;
+
+      // Mark attempt to avoid multiple concurrent loads
+      initialLoadAttempted.current = true;
 
       try {
         // Sync user first
@@ -253,10 +271,14 @@ export default function BMGradeCalculator() {
         console.log('✅ User synced:', userData);
         if (userData) {
           setBmType(userData.bm_type || 'TAL');
-          setCurrentSemester(userData.current_semester || 1);
+          // For semester: use DB value, but fallback to current localStorage value
+          setCurrentSemester(userData.current_semester || parseInt(localStorage.getItem('currentSemester') || '1', 10));
           setMaturnoteGoal(parseFloat(userData.maturanote_goal) || 5.0);
           setShowSemesterPrompt(Boolean(userData.needsSemesterSetup));
-          setIsTourCompleted(userData.tour_completed || false);
+          // For tour: respect if completed in DB OR localStorage
+          const tourCompletedInDb = userData.tour_completed || false;
+          const tourCompletedInLocal = localStorage.getItem('schulnetz_tour_completed') === 'true';
+          setIsTourCompleted(tourCompletedInDb || tourCompletedInLocal);
         }
 
         // Load grades and convert to subjects format
@@ -502,7 +524,7 @@ export default function BMGradeCalculator() {
 
     loadFromDatabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, dataLoaded, database]);
+  }, [user, dataLoaded, authLoading]);
 
   // Fallback: Load from localStorage if not logged in
   useLoadData({
