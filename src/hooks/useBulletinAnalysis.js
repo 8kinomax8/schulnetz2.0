@@ -34,7 +34,7 @@ export const useBulletinAnalysis = (
     return Number.isFinite(parsed) ? parsed : null;
   };
 
-  const analyzeFile = async (file, scanType = 'Bulletin') => {
+  const analyzeFile = async (file, scanType = 'BULLETIN') => {
     setIsAnalyzing(true);
     setAnalysisResult(null);
 

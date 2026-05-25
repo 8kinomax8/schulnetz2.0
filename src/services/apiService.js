@@ -106,10 +106,10 @@ export const normalizeSubjectName = (name, validSubjects) => {
 /**
  * Analyse un bulletin ou screenshot SAL via l'API
  * @param {File} file - Fichier image/PDF à analyser
- * @param {string} scanType - Type de scan ('SAL' ou 'Bulletin')
+ * @param {string} scanType - Type de scan ('SAL', 'BULLETIN' ou 'EFZ_SAL')
  * @returns {Promise<Object>} Résultat de l'analyse
  */
-export const analyzeBulletin = async (file, scanType = 'Bulletin') => {
+export const analyzeBulletin = async (file, scanType = 'BULLETIN') => {
   try {
     const base64Data = await fileToBase64(file);
     

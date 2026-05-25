@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
 import { Joyride, STATUS } from 'react-joyride';
 import { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
@@ -187,7 +187,7 @@ export default function BMGradeCalculator() {
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
-  const [tourHasRunThisSession, setTourHasRunThisSession] = useState(false);
+  const tourDecisionMade = useRef(false); // Use ref to persist across page reloads
   const { isTourCompleted, setIsTourCompleted } = database;
 
   // Run the tour ONCE when data is loaded (only on first login/visit)
@@ -196,20 +196,18 @@ export default function BMGradeCalculator() {
     
     // Only launch tour if:
     // 1. Data has loaded (user is ready)
-    // 2. Tour hasn't already run in this session (prevent re-launches)
+    // 2. We haven't made a decision about the tour yet (persist across page reloads)
     // 3. Tour hasn't been marked as completed (this is permanent across devices)
-    if (dataLoaded && !tourHasRunThisSession) {
+    if (dataLoaded && !tourDecisionMade.current) {
       const shouldLaunchTour = (user && !isTourCompleted) || (!user && !localTourDone);
+      
+      tourDecisionMade.current = true; // Mark decision made - NEVER evaluate this again in this session
       
       if (shouldLaunchTour) {
         // Wait a bit to let UI render
         setTimeout(() => {
           setRunTour(true);
-          setTourHasRunThisSession(true); // Mark that tour has launched this session
         }, 1500);
-      } else {
-        // Tour already completed in past, don't run it again
-        setTourHasRunThisSession(true);
       }
     }
   }, [dataLoaded, user, isTourCompleted]);
@@ -231,51 +229,9 @@ export default function BMGradeCalculator() {
   };
 
 
-  // Reset all state when user disconnects (security fix)
   useEffect(() => {
     if (!user) {
       setDataLoaded(false);
-      // Reset BM data
-      setSubjects({});
-      setSemesterGrades({});
-      setExamSimulator({});
-      setFinalExamGrades({});
-      setSemesterPlans({});
-      setSubjectGoals({});
-      setCurrentSemester(1);
-      setBmType('TAL');
-      setMaturnoteGoal(5.0);
-      setRunTour(false);
-      setTourHasRunThisSession(false);
-      
-      // Reset EFZ data
-      setModuleCatalog([]);
-      setModuleGrades({});
-      setModulePlans({});
-      setModuleGoals({});
-      setUekGrades([]);
-      setUekPlans([]);
-      setIpaGrade(null);
-      setFinalGoal(5.0);
-      setUekGoal(5.0);
-      
-      // Reset UI states
-      setBmTab('current');
-      setEfzTab('scan-sal');
-      setMainTab('overview');
-      setShowSemesterPrompt(false);
-      setEfzIsAnalyzing(false);
-      setEfzAnalysisResult(null);
-      
-      // Ensure localStorage is cleared
-      try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.removeItem('bm-calculator-data');
-          window.localStorage.removeItem('currentSemester');
-        }
-      } catch (err) {
-        console.warn('Failed to clear localStorage on logout:', err);
-      }
     }
   }, [user]);
 
@@ -285,19 +241,10 @@ export default function BMGradeCalculator() {
       console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId });
       if (!user || dataLoaded || database.loading) return;
 
-      const originalUserId = user.id; // Capture user ID at start of load
-
       try {
         // Sync user first
         console.log('🔄 Syncing user...');
         const userData = await database.syncUser(bmType);
-        
-        // SECURITY: Check if user has changed during loading
-        if (user?.id !== originalUserId) {
-          console.warn('⚠️ User changed during sync, aborting load');
-          return;
-        }
-        
         console.log('✅ User synced:', userData);
         if (userData) {
           setBmType(userData.bm_type || 'TAL');
@@ -309,13 +256,6 @@ export default function BMGradeCalculator() {
         // Load grades and convert to subjects format
         console.log('📚 Loading grades...');
         const grades = await database.getUserGrades();
-        
-        // SECURITY: Check if user has changed during grades load
-        if (user?.id !== originalUserId) {
-          console.warn('⚠️ User changed during grades load, aborting');
-          return;
-        }
-        
         console.log('📚 Grades loaded:', grades);
         if (grades && grades.length > 0) {
           const subjectsFromDb = {};
@@ -401,12 +341,6 @@ export default function BMGradeCalculator() {
         }
         setExamSimulator(examsFromDb);
         setFinalExamGrades(finalExamsFromDb);
-
-        // SECURITY: Final check - ensure user hasn't changed before marking data as loaded
-        if (user?.id !== originalUserId) {
-          console.warn('⚠️ User changed during final loading step, aborting');
-          return;
-        }
 
         setDataLoaded(true);
 
@@ -553,11 +487,8 @@ export default function BMGradeCalculator() {
         }
       } catch (err) {
         console.error('Error loading data from database:', err);
-        // SECURITY: Check user hasn't changed before fallback
-        if (user?.id === originalUserId) {
-          // Fallback to localStorage only if user is still the same
-          setDataLoaded(true);
-        }
+        // Fallback to localStorage
+        setDataLoaded(true);
       }
     };
 
@@ -976,7 +907,7 @@ export default function BMGradeCalculator() {
     try {
       setEfzIsAnalyzing(true);
       setEfzAnalysisResult(null);
-      const result = await analyzeBulletin(file, 'Zeugniss');
+      const result = await analyzeBulletin(file, 'BULLETIN');
       const semesters = Array.isArray(result?.semesters)
         ? result.semesters
         : (result?.grades ? [{ semester: result.semester || currentSemester, grades: result.grades }] : []);
