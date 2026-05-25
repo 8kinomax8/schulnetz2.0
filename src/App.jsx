@@ -187,20 +187,32 @@ export default function BMGradeCalculator() {
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
+  const [tourHasRunThisSession, setTourHasRunThisSession] = useState(false);
   const { isTourCompleted, setIsTourCompleted } = database;
 
-  // Run the tour when data is loaded
+  // Run the tour ONCE when data is loaded (only on first login/visit)
   useEffect(() => {
-    // Both logged in (via isTourCompleted) OR not logged in (via localStorage)
     const localTourDone = localStorage.getItem('schulnetz_tour_completed') === 'true';
-    if (dataLoaded) {
-       // Launch tour if: (logged in AND tour not completed) OR (not logged in AND tour not completed locally)
-       if ((user && !isTourCompleted) || (!user && !localTourDone)) {
-         // Wait a bit to let UI render
-         setTimeout(() => { setRunTour(true); }, 1500);
-       }
+    
+    // Only launch tour if:
+    // 1. Data has loaded (user is ready)
+    // 2. Tour hasn't already run in this session (prevent re-launches)
+    // 3. Tour hasn't been marked as completed (this is permanent across devices)
+    if (dataLoaded && !tourHasRunThisSession) {
+      const shouldLaunchTour = (user && !isTourCompleted) || (!user && !localTourDone);
+      
+      if (shouldLaunchTour) {
+        // Wait a bit to let UI render
+        setTimeout(() => {
+          setRunTour(true);
+          setTourHasRunThisSession(true); // Mark that tour has launched this session
+        }, 1500);
+      } else {
+        // Tour already completed in past, don't run it again
+        setTourHasRunThisSession(true);
+      }
     }
-  }, [user, dataLoaded, isTourCompleted]);
+  }, [dataLoaded, user, isTourCompleted]);
 
   const handleJoyrideCallback = async (data) => {
     const { status } = data;
@@ -219,9 +231,51 @@ export default function BMGradeCalculator() {
   };
 
 
+  // Reset all state when user disconnects (security fix)
   useEffect(() => {
     if (!user) {
       setDataLoaded(false);
+      // Reset BM data
+      setSubjects({});
+      setSemesterGrades({});
+      setExamSimulator({});
+      setFinalExamGrades({});
+      setSemesterPlans({});
+      setSubjectGoals({});
+      setCurrentSemester(1);
+      setBmType('TAL');
+      setMaturnoteGoal(5.0);
+      setRunTour(false);
+      setTourHasRunThisSession(false);
+      
+      // Reset EFZ data
+      setModuleCatalog([]);
+      setModuleGrades({});
+      setModulePlans({});
+      setModuleGoals({});
+      setUekGrades([]);
+      setUekPlans([]);
+      setIpaGrade(null);
+      setFinalGoal(5.0);
+      setUekGoal(5.0);
+      
+      // Reset UI states
+      setBmTab('current');
+      setEfzTab('scan-sal');
+      setMainTab('overview');
+      setShowSemesterPrompt(false);
+      setEfzIsAnalyzing(false);
+      setEfzAnalysisResult(null);
+      
+      // Ensure localStorage is cleared
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem('bm-calculator-data');
+          window.localStorage.removeItem('currentSemester');
+        }
+      } catch (err) {
+        console.warn('Failed to clear localStorage on logout:', err);
+      }
     }
   }, [user]);
 
@@ -231,10 +285,19 @@ export default function BMGradeCalculator() {
       console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId });
       if (!user || dataLoaded || database.loading) return;
 
+      const originalUserId = user.id; // Capture user ID at start of load
+
       try {
         // Sync user first
         console.log('🔄 Syncing user...');
         const userData = await database.syncUser(bmType);
+        
+        // SECURITY: Check if user has changed during loading
+        if (user?.id !== originalUserId) {
+          console.warn('⚠️ User changed during sync, aborting load');
+          return;
+        }
+        
         console.log('✅ User synced:', userData);
         if (userData) {
           setBmType(userData.bm_type || 'TAL');
@@ -246,6 +309,13 @@ export default function BMGradeCalculator() {
         // Load grades and convert to subjects format
         console.log('📚 Loading grades...');
         const grades = await database.getUserGrades();
+        
+        // SECURITY: Check if user has changed during grades load
+        if (user?.id !== originalUserId) {
+          console.warn('⚠️ User changed during grades load, aborting');
+          return;
+        }
+        
         console.log('📚 Grades loaded:', grades);
         if (grades && grades.length > 0) {
           const subjectsFromDb = {};
@@ -331,6 +401,12 @@ export default function BMGradeCalculator() {
         }
         setExamSimulator(examsFromDb);
         setFinalExamGrades(finalExamsFromDb);
+
+        // SECURITY: Final check - ensure user hasn't changed before marking data as loaded
+        if (user?.id !== originalUserId) {
+          console.warn('⚠️ User changed during final loading step, aborting');
+          return;
+        }
 
         setDataLoaded(true);
 
@@ -477,8 +553,11 @@ export default function BMGradeCalculator() {
         }
       } catch (err) {
         console.error('Error loading data from database:', err);
-        // Fallback to localStorage
-        setDataLoaded(true);
+        // SECURITY: Check user hasn't changed before fallback
+        if (user?.id === originalUserId) {
+          // Fallback to localStorage only if user is still the same
+          setDataLoaded(true);
+        }
       }
     };
 

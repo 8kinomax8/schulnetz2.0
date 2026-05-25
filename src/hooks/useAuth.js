@@ -53,6 +53,15 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     setAuthError(null);
+    // Clear user data from localStorage for security
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.removeItem('bm-calculator-data');
+        window.localStorage.removeItem('currentSemester');
+      }
+    } catch (err) {
+      console.warn('Failed to clear localStorage:', err);
+    }
     const { error } = await supabase.auth.signOut();
     if (error) setAuthError(error.message);
   }, []);
