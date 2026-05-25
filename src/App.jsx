@@ -199,34 +199,27 @@ export default function BMGradeCalculator() {
     // Restore tour completion status from localStorage on mount
     return localStorage.getItem('schulnetz_tour_completed') === 'true';
   });
-  const tourDecisionMade = useRef(false); // Use ref to persist across page reloads
-
-  // Mark tour as decided if already completed (from localStorage)
-  useEffect(() => {
-    if (isTourCompleted) {
-      tourDecisionMade.current = true;
-    }
-  }, [isTourCompleted]);
+  const tourLaunchedThisSession = useRef(false); // Track if tour has been launched this session
 
   // Run the tour ONCE when data is loaded (only on first login/visit)
   useEffect(() => {
-    console.log('🔄 Joyride check:', { dataLoaded, user: !!user, isTourCompleted, decisionMade: tourDecisionMade.current });
+    console.log('🔄 Joyride check:', { dataLoaded, isTourCompleted, tourLaunched: tourLaunchedThisSession.current });
 
     // Only launch tour if:
     // 1. Data has loaded (user is ready)
-    // 2. We haven't made a decision about the tour yet
+    // 2. Tour hasn't already been launched this session
     // 3. Tour is not completed (from localStorage or DB)
-    if (dataLoaded && !tourDecisionMade.current && !isTourCompleted) {
+    if (dataLoaded && !tourLaunchedThisSession.current && !isTourCompleted) {
       console.log('🚀 Joyride decision: launching tour');
 
-      tourDecisionMade.current = true; // Mark decision made - NEVER evaluate this again in this session
+      tourLaunchedThisSession.current = true; // Mark as launched this session
       
       // Wait a bit to let UI render
       setTimeout(() => {
         setRunTour(true);
       }, 1500);
     }
-  }, [dataLoaded, user, isTourCompleted]);
+  }, [dataLoaded, isTourCompleted]);
 
   // Ref to track if initial data load has been attempted
   const initialLoadAttempted = useRef(false);
@@ -987,7 +980,7 @@ export default function BMGradeCalculator() {
             normalizedGrade,
             1,
             '',
-            `Zeugniss S${semester}`,
+            `Zeugnis S${semester}`,
             'import',
             semester
           );

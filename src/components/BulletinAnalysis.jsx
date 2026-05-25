@@ -71,7 +71,7 @@ export default function BulletinAnalysis({
             <>
               <Camera className="w-5 h-5 text-purple-600" />
                 <h3 className="text-lg font-semibold text-gray-800">
-                Zeugniss scanne
+                Zeugnis scannen
               </h3>
             </>
           )}
