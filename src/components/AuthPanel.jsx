@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks';
-import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff, Github, Chrome } from 'lucide-react';
 import AccountSettings from './AccountSettings';
 
 export default function AuthPanel() {
-  const { user, authLoading, authError, signUp, signIn, signOut } = useAuth();
+  const { user, authLoading, authError, signUp, signIn, signOut, signInWithGoogle, signInWithGithub } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,6 +27,16 @@ export default function AuthPanel() {
   const toggleSettings = () => {
     const newState = !showSettings;
     setShowSettings(newState);
+  };
+
+  const handleOAuthSignIn = async (oauthProvider) => {
+    setPending(true);
+    if (oauthProvider === 'google') {
+      await signInWithGoogle();
+    } else if (oauthProvider === 'github') {
+      await signInWithGithub();
+    }
+    setPending(false);
   };
 
   const handleSubmit = async (e) => {
@@ -162,6 +172,7 @@ export default function AuthPanel() {
                 </div>
                 <input
                   type="email"
+                  name="email"
                   placeholder="name@beispiel.ch"
                   value={email}
                   onChange={e => {
@@ -169,6 +180,7 @@ export default function AuthPanel() {
                     if (signupSuccess) setSignupSuccess(false);
                   }}
                   required
+                  autoComplete="email"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
                 />
               </div>
@@ -184,6 +196,7 @@ export default function AuthPanel() {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  name="password"
                   placeholder="••••••••"
                   value={password}
                   onChange={e => {
@@ -193,6 +206,7 @@ export default function AuthPanel() {
                   }}
                   required
                   minLength={6}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                   className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
                 />
                 <button
@@ -217,6 +231,7 @@ export default function AuthPanel() {
                     </div>
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirm-password"
                       placeholder="••••••••"
                       value={confirmPassword}
                       onChange={e => {
@@ -226,6 +241,7 @@ export default function AuthPanel() {
                       }}
                       required
                       minLength={6}
+                      autoComplete="new-password"
                       className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors"
                     />
 
@@ -264,6 +280,38 @@ export default function AuthPanel() {
                 mode === 'signup' ? "🚀 Konto erstellen" : '🚀 Anmelden'
               )}
             </button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">oder</span>
+              </div>
+            </div>
+
+            {/* OAuth Buttons */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn('google')}
+                disabled={pending}
+                className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Chrome className="h-5 w-5" />
+                Google
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOAuthSignIn('github')}
+                disabled={pending}
+                className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Github className="h-5 w-5" />
+                GitHub
+              </button>
+            </div>
           </form>
         </div>
 

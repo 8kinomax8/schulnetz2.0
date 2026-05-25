@@ -112,5 +112,23 @@ export function useAuth() {
     return data;
   }, []);
 
-  return { user, authLoading, authError, signUp, signIn, signOut, updateEmail, updatePassword, updateDisplayName };
+  const signInWithGoogle = useCallback(async () => {
+    setAuthError(null);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google'
+    });
+    if (error) setAuthError(error.message);
+    return { data, error };
+  }, []);
+
+  const signInWithGithub = useCallback(async () => {
+    setAuthError(null);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'github'
+    });
+    if (error) setAuthError(error.message);
+    return { data, error };
+  }, []);
+
+  return { user, authLoading, authError, signUp, signIn, signOut, updateEmail, updatePassword, updateDisplayName, signInWithGoogle, signInWithGithub };
 }
