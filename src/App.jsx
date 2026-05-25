@@ -397,7 +397,9 @@ export default function BMGradeCalculator() {
                   weight: parseFloat(g.weight || 1),
                   displayWeight: g.weight ? String(g.weight) : '1',
                   date: g.date ? sqlDateToSwiss(g.date) : '',
-                  name: g.control_name || ''
+                  name: g.control_name || '',
+                  semester: g.semester || m.semester || currentSemester,
+                  source: g.source || 'manual'
                 }));
               } catch (err) {
                 console.warn(`⚠️ Failed to load grades for module ${m.code}:`, err.message || err);
@@ -672,7 +674,30 @@ export default function BMGradeCalculator() {
   );
 
   // Create apprenticeship calculations for current semester and previous semesters
+  
+  // Filter module grades to only show current semester for calculations
+  const filterModuleGradesBySemester = (grades, targetSemester) => {
+    if (!Array.isArray(grades)) return [];
+    return grades.filter(g => (g.semester || currentSemester) === targetSemester);
+  };
+
+  const moduleGradesCurrentSemesterOnly = Object.fromEntries(
+    Object.entries(moduleGrades).map(([code, grades]) => [
+      code,
+      filterModuleGradesBySemester(grades, currentSemester)
+    ])
+  );
+
   const apprenticeshipCalculations = useApprenticeshipCalculations(
+    moduleGradesCurrentSemesterOnly,
+    modulePlans,
+    uekGrades,
+    uekPlans,
+    ipaGrade
+  );
+
+  // Create apprenticeship calculations for ALL semesters (for final grade calculations)
+  const apprenticeshipCalculationsAllSemesters = useApprenticeshipCalculations(
     moduleGrades,
     modulePlans,
     uekGrades,
@@ -743,10 +768,13 @@ export default function BMGradeCalculator() {
     return withoutCode && withoutCode !== raw ? withoutCode : '';
   };
 
-  const addOrMergeModuleGrade = async (moduleCode, moduleName, grade, weight = 1, date = '', name = '', source = 'import') => {
+  const addOrMergeModuleGrade = async (moduleCode, moduleName, grade, weight = 1, date = '', name = '', source = 'import', semester = null) => {
     const code = normalizeModuleCode(moduleCode);
     const normalizedGrade = clampGrade(grade);
     if (!code || normalizedGrade === null) return false;
+
+    // Use provided semester or fall back to current semester
+    const targetSemester = semester !== null ? semester : currentSemester;
 
     const normalizedDate = date ? formatSwissDate(date) : '';
     const parsedWeight = apprenticeshipCalculations.parseWeight(weight);
@@ -759,7 +787,7 @@ export default function BMGradeCalculator() {
     if (!moduleEntry) {
       if (user && database.userId && database.addEfzModule) {
         try {
-          const created = await database.addEfzModule({ module_code: code, name: moduleName || '', semester: currentSemester });
+          const created = await database.addEfzModule({ module_code: code, name: moduleName || '', semester: targetSemester });
           efzId = created?.id || null;
         } catch (err) {
           console.warn('Failed to create EFZ module from scan:', err.message || err);
@@ -768,7 +796,7 @@ export default function BMGradeCalculator() {
 
       setModuleCatalog(prev => {
         if (prev.some(m => m.code === code)) return prev;
-        return [...prev, { code, name: moduleName || '', efz_id: efzId, semester: currentSemester }];
+        return [...prev, { code, name: moduleName || '', efz_id: efzId, semester: targetSemester }];
       });
       setModuleGrades(prev => (prev[code] ? prev : { ...prev, [code]: [] }));
       setModulePlans(prev => (prev[code] ? prev : { ...prev, [code]: [] }));
@@ -776,7 +804,7 @@ export default function BMGradeCalculator() {
     } else if (!moduleEntry.name && moduleName) {
       if (user && database.userId && database.addEfzModule) {
         try {
-          await database.addEfzModule({ module_code: code, name: moduleName, semester: moduleEntry.semester || currentSemester });
+          await database.addEfzModule({ module_code: code, name: moduleName, semester: moduleEntry.semester || targetSemester });
         } catch (err) {
           console.warn('Failed to update EFZ module name from scan:', err.message || err);
         }
@@ -793,7 +821,8 @@ export default function BMGradeCalculator() {
       return (
         Math.abs(parseFloat(g.grade) - normalizedGrade) < 0.01 &&
         storedDate === normalizedDate &&
-        (g.name || '').trim() === normalizedName
+        (g.name || '').trim() === normalizedName &&
+        (g.semester || currentSemester) === targetSemester
       );
     });
 
@@ -807,7 +836,8 @@ export default function BMGradeCalculator() {
       displayWeight: String(weight || normalizedWeight),
       date: normalizedDate,
       name: normalizedName,
-      source
+      source,
+      semester: targetSemester
     };
 
     setModuleGrades(prev => ({
@@ -823,7 +853,8 @@ export default function BMGradeCalculator() {
           weight: normalizedWeight,
           date: normalizedDate ? swissDateToSQL(normalizedDate) : null,
           control_name: normalizedName || null,
-          source
+          source,
+          semester: targetSemester
         });
         if (created?.id) {
           setModuleGrades(prev => ({
@@ -935,7 +966,8 @@ export default function BMGradeCalculator() {
             1,
             '',
             `Zeugniss S${semester}`,
-            'import'
+            'import',
+            semester
           );
           if (wasAdded) added += 1;
         }
@@ -1159,12 +1191,13 @@ export default function BMGradeCalculator() {
     setEditingModuleForm({ code: '', name: '' });
   };
 
-  const addModuleGrade = async (moduleId, grade, weight, date = null, name = null) => {
+  const addModuleGrade = async (moduleId, grade, weight, date = null, name = null, semester = null) => {
     const normalizedGrade = clampGrade(grade);
     const parsedWeight = apprenticeshipCalculations.parseWeight(weight);
     const normalizedWeight = Number.isFinite(parsedWeight) ? parsedWeight : 1;
     const normalizedDate = date ? formatSwissDate(date) : '';
     const normalizedName = name ? name.trim() : null;
+    const targetSemester = semester !== null ? semester : currentSemester;
 
     if (normalizedGrade === null) return;
 
@@ -1174,7 +1207,8 @@ export default function BMGradeCalculator() {
       return (
         Math.abs(g.grade - normalizedGrade) < 0.01 &&
         storedDate === normalizedDate &&
-        (g.name || '').trim() === (normalizedName || '')
+        (g.name || '').trim() === (normalizedName || '') &&
+        (g.semester || currentSemester) === targetSemester
       );
     });
 
@@ -1191,7 +1225,8 @@ export default function BMGradeCalculator() {
       displayWeight,
       date: normalizedDate,
       name: normalizedName,
-      source: 'manual'
+      source: 'manual',
+      semester: targetSemester
     };
 
     setModuleGrades(prev => ({
@@ -1205,7 +1240,7 @@ export default function BMGradeCalculator() {
       const efzId = moduleEntry?.efz_id;
       if (user && database.userId && efzId && database.addEfzModuleGrade) {
         const sqlDate = date ? swissDateToSQL(date) : null;
-        const created = await database.addEfzModuleGrade({ module_id: efzId, grade: normalizedGrade, weight: normalizedWeight, date: sqlDate, control_name: normalizedName, source: 'manual' });
+        const created = await database.addEfzModuleGrade({ module_id: efzId, grade: normalizedGrade, weight: normalizedWeight, date: sqlDate, control_name: normalizedName, source: 'manual', semester: targetSemester });
         if (created && created.id) {
           // Replace temporary id with DB id
           setModuleGrades(prev => ({
@@ -1420,9 +1455,10 @@ export default function BMGradeCalculator() {
 
     // Find or create the module
     let moduleEntry = moduleCatalog.find(m => m.code === moduleId);
+    const targetSemester = moduleEntry?.semester ?? Math.max(1, currentSemester - 1);
+    
     if (!moduleEntry) {
-      const fallbackSemester = Math.max(1, currentSemester - 1);
-      setModuleCatalog(prev => ([...prev, { code: moduleId, name: '', efz_id: null, semester: fallbackSemester }]));
+      setModuleCatalog(prev => ([...prev, { code: moduleId, name: '', efz_id: null, semester: targetSemester }]));
     }
 
     // Add as single "grade" with weight 1 (represents the average)
@@ -1433,7 +1469,8 @@ export default function BMGradeCalculator() {
       displayWeight: '1',
       date: '',
       name: 'Zeugniss-Durchschnitt',
-      source: 'import'
+      source: 'import',
+      semester: targetSemester
     };
 
     setModuleGrades(prev => ({
@@ -1562,6 +1599,23 @@ export default function BMGradeCalculator() {
   const finalGrade = apprenticeshipCalculations.getFinalGrade();
   const efzOverallAverage = apprenticeshipCalculations.getOverallFinalGrade();
   const efzRawOverallAverage = apprenticeshipCalculations.getRawOverallFinalGrade();
+
+  // For final grade tab: use calculations including ALL semesters
+  const modulesAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getModulesAverage();
+  const rawModulesAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getRawModulesAverage();
+  const uekAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getUekAverage();
+  const schoolPartAllSemesters = apprenticeshipCalculationsAllSemesters.getSchoolPart();
+  const finalGradeAllSemesters = apprenticeshipCalculationsAllSemesters.getFinalGrade();
+
+  // Helper function to get module average for previous semesters (all grades)
+  const getModuleAverageAllSemesters = (moduleCode) => {
+    return apprenticeshipCalculationsAllSemesters.getModuleAverage(moduleCode);
+  };
+
+  const getRawModuleAverageAllSemesters = (moduleCode) => {
+    return apprenticeshipCalculationsAllSemesters.getRawModuleAverage(moduleCode);
+  };
+
   const userFirstName = getFirstName(user);
 
   // ============ Tour Configuration ============
@@ -2115,7 +2169,7 @@ export default function BMGradeCalculator() {
                                     </button>
                                   </>
                                 }
-                                grades={moduleGrades[module.code] || []}
+                                grades={moduleGradesCurrentSemesterOnly[module.code] || []}
                                 onAddGrade={addModuleGrade}
                                 onRemoveGrade={removeModuleGrade}
                                 semesterAverage={apprenticeshipCalculations.getModuleAverage(module.code)}
@@ -2163,7 +2217,7 @@ export default function BMGradeCalculator() {
                             <SemesterSimulatorCard
                               key={`${moduleId}-sim`}
                               subject={label}
-                              currentGrades={moduleGrades[moduleId] || []}
+                              currentGrades={moduleGradesCurrentSemesterOnly[moduleId] || []}
                               plannedControls={modulePlans[moduleId] || []}
                               onAddPlan={(grade, weight) => addModulePlan(moduleId, grade, weight)}
                               onRemovePlan={(id) => removeModulePlan(moduleId, id)}
@@ -2329,8 +2383,8 @@ export default function BMGradeCalculator() {
                                 grades={moduleGrades[module.code] || []}
                                 onAddGrade={addModuleGrade}
                                 onRemoveGrade={removeModuleGrade}
-                                semesterAverage={apprenticeshipCalculations.getModuleAverage(module.code)}
-                                exactAverage={apprenticeshipCalculations.getRawModuleAverage(module.code)}
+                                semesterAverage={getModuleAverageAllSemesters(module.code)}
+                                exactAverage={getRawModuleAverageAllSemesters(module.code)}
                                 targetGrade={5.0}
                                 requiredGrade={null}
                               />
@@ -2349,19 +2403,19 @@ export default function BMGradeCalculator() {
                     <div className="grid md:grid-cols-4 gap-4">
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
                         <div className="text-xs text-amber-700 mb-1">Berufsschule-Durchschnitt</div>
-                        <div className="text-2xl font-bold text-amber-900">{modulesAverage?.toFixed(1) || '-'}</div>
+                        <div className="text-2xl font-bold text-amber-900">{modulesAverageAllSemesters?.toFixed(1) || '-'}</div>
                       </div>
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
                         <div className="text-xs text-amber-700 mb-1">üK-Durchschnitt</div>
-                        <div className="text-2xl font-bold text-amber-900">{uekAverage?.toFixed(1) || '-'}</div>
+                        <div className="text-2xl font-bold text-amber-900">{uekAverageAllSemesters?.toFixed(1) || '-'}</div>
                       </div>
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
                         <div className="text-xs text-amber-700 mb-1">Schulteil</div>
-                        <div className="text-2xl font-bold text-amber-900">{schoolPart?.toFixed(1) || '-'}</div>
+                        <div className="text-2xl font-bold text-amber-900">{schoolPartAllSemesters?.toFixed(1) || '-'}</div>
                       </div>
                       <div className="bg-white rounded-lg p-3 text-center border border-amber-100">
                         <div className="text-xs text-amber-700 mb-1">Lehrabschlussnote</div>
-                        <div className="text-2xl font-bold text-amber-900">{finalGrade?.toFixed(1) || '-'}</div>
+                        <div className="text-2xl font-bold text-amber-900">{finalGradeAllSemesters?.toFixed(1) || '-'}</div>
                       </div>
                     </div>
                   </div>

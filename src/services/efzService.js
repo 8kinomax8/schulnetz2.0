@@ -48,8 +48,8 @@ export async function getModuleGrades(module_id) {
   return data ?? [];
 }
 
-export async function addModuleGrade({ module_id, grade, weight = 1, date = null, control_name = null, source = 'manual' }) {
-  const payload = { module_id, grade, weight, date, control_name, source };
+export async function addModuleGrade({ module_id, grade, weight = 1, date = null, control_name = null, source = 'manual', semester = 1 }) {
+  const payload = { module_id, grade, weight, date, control_name, source, semester };
   const { data, error } = await supabase
     .from('efz_module_grades')
     .insert([payload])
