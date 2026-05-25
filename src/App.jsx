@@ -187,8 +187,8 @@ export default function BMGradeCalculator() {
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
+  const [isTourCompleted, setIsTourCompleted] = useState(false);
   const tourDecisionMade = useRef(false); // Use ref to persist across page reloads
-  const { isTourCompleted, setIsTourCompleted } = database;
 
   // Run the tour ONCE when data is loaded (only on first login/visit)
   useEffect(() => {
@@ -251,6 +251,7 @@ export default function BMGradeCalculator() {
           setCurrentSemester(userData.current_semester || 1);
           setMaturnoteGoal(parseFloat(userData.maturanote_goal) || 5.0);
           setShowSemesterPrompt(Boolean(userData.needsSemesterSetup));
+          setIsTourCompleted(userData.tour_completed || false);
         }
 
         // Load grades and convert to subjects format
