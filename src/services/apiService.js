@@ -104,6 +104,57 @@ export const normalizeSubjectName = (name, validSubjects) => {
 };
 
 /**
+ * Extrait et parse du JSON depuis un texte brut (gère le markdown ou les commentaires additionnels)
+ * @param {string} text - Texte brut de l'API Claude
+ * @returns {Object} Objet parsé
+ */
+const parseCleanJson = (text) => {
+  if (!text) {
+    throw new Error('Aucun texte fourni pour le parsing JSON.');
+  }
+
+  const trimmed = text.trim();
+  
+  // Essai de parsing direct
+  try {
+    return JSON.parse(trimmed);
+  } catch (e) {
+    // Si échec, extraction de la portion entre le premier { ou [ et le dernier } ou ]
+    const firstBrace = trimmed.indexOf('{');
+    const firstBracket = trimmed.indexOf('[');
+    
+    let startIndex = -1;
+    let isObject = true;
+    
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+      startIndex = firstBrace;
+      isObject = true;
+    } else if (firstBracket !== -1) {
+      startIndex = firstBracket;
+      isObject = false;
+    }
+    
+    if (startIndex !== -1) {
+      const closingChar = isObject ? '}' : ']';
+      const endIndex = trimmed.lastIndexOf(closingChar);
+      
+      if (endIndex !== -1 && endIndex > startIndex) {
+        const candidate = trimmed.slice(startIndex, endIndex + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          console.error('[API] Failed parsing JSON candidate:', candidate);
+        }
+      }
+    }
+    
+    // Si tout échoue, on affiche le texte reçu pour faciliter le debug
+    console.error('[API] Raw text received from Claude that failed parsing:', text);
+    throw new Error(`Erreur d'analyse des données JSON : ${e.message}`);
+  }
+};
+
+/**
  * Analyse un bulletin ou screenshot SAL via l'API
  * @param {File} file - Fichier image/PDF à analyser
  * @param {string} scanType - Type de scan ('SAL', 'BULLETIN' ou 'EFZ_SAL')
@@ -120,7 +171,7 @@ export const analyzeBulletin = async (file, scanType = 'BULLETIN') => {
     }
     
     // Get authentication token
-    const { data, error: sessionError } = await supabase.auth.getSession();
+    const { data } = await supabase.auth.getSession();
     const token = data?.session?.access_token;
     
     if (!token) {
@@ -172,8 +223,7 @@ export const analyzeBulletin = async (file, scanType = 'BULLETIN') => {
     }
     
     const textContent = data_response.content[0].text;
-    const cleanText = textContent.replace(/```json|```/g, '').trim();
-    const result = JSON.parse(cleanText);
+    const result = parseCleanJson(textContent);
 
     return result;
   } catch (error) {

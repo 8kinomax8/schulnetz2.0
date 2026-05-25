@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 // ============================================================================
 
 const MAX_BASE64_SIZE = 5 * 1024 * 1024; // 5MB limit
-const VALID_SCAN_TYPES = ['SAL', 'BULLETIN', 'EFZ_SAL'];
+const VALID_SCAN_TYPES = ['SAL', 'BULLETIN', 'EFZ_SAL', 'EFZ_BULLETIN'];
 
 // Whitelist allowed origins
 const ALLOWED_ORIGINS = [
@@ -32,7 +32,7 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 // PROMPTS - Claude instructions
 // ============================================================================
 
-const BULLETIN_PROMPT = `You are analyzing a Swiss school report (Berufsschule or Berufsmaturität). Extract all semester grades.
+const BULLETIN_PROMPT = `You are analyzing a Swiss school report (Berufsmaturität). Extract all semester grades.
 
 OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 {
@@ -88,6 +88,23 @@ IMPORTANT RULES:
 - If no data: {"error": "no controls found"}
 `;
 
+const EFZ_BULLETIN_PROMPT = `You are analyzing a Swiss school report (Berufsschule Zeugnis) from an IT/computer science apprenticeship training. Extract all semester grades.
+
+OUTPUT FORMAT (ONLY valid JSON, no text before or after):
+{
+  "semesters": [
+    {"semester": 1, "grades": {"M117": 5.0, "M122": 4.5, "Allgemeinbildung": 5.0}},
+    {"semester": 2, "grades": {"M152": 5.5, "ueK": 5.0}}
+  ]
+}
+
+RULES:
+- Extract modules (e.g., M117, M122, M152, M286, etc.) and other subjects (e.g., Allgemeinbildung, ABU, ueK, Englisch, Sport).
+- Module codes must be normalized as "M" followed by 3 digits (e.g., M117, M152, M254).
+- Grades must be numeric values (e.g., 5.0, 4.5, 6.0).
+- If no data found: {"error": "no grades found"}
+`;
+
 // ============================================================================
 // HELPERS
 // ============================================================================
@@ -96,6 +113,8 @@ function getPromptForScanType(scanType) {
   switch (scanType) {
     case 'EFZ_SAL':
       return EFZ_SAL_PROMPT;
+    case 'EFZ_BULLETIN':
+      return EFZ_BULLETIN_PROMPT;
     case 'SAL':
       return SAL_PROMPT;
     case 'BULLETIN':

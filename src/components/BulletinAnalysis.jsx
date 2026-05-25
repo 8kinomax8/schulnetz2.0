@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Upload, Camera } from 'lucide-react';
 import { formatSwissDate } from '../utils';
 
@@ -11,8 +11,53 @@ export default function BulletinAnalysis({
   onFileUpload,
   activeTab
 }) {
+  const containerRef = useRef(null);
+
+  // Gestionnaire pour coller une image
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let item of items) {
+        let file = null;
+
+        // Vérifier si c'est une image
+        if (item.type.startsWith('image/')) {
+          file = item.getAsFile();
+        }
+        // Vérifier si c'est un PDF
+        else if (item.type === 'application/pdf') {
+          file = item.getAsFile();
+        }
+
+        if (file) {
+          e.preventDefault();
+          // Créer un événement synthétique pour réutiliser handleFileUpload
+          const event = {
+            target: {
+              files: [file]
+            }
+          };
+          onFileUpload(event, activeTab);
+          break;
+        }
+      }
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('paste', handlePaste);
+      return () => container.removeEventListener('paste', handlePaste);
+    }
+  }, [activeTab, onFileUpload]);
+
   return (
-    <div className={`rounded-lg shadow-sm p-6 mb-6 border-2 ${activeTab === 'current' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'}`}> 
+    <div 
+      ref={containerRef}
+      className={`rounded-lg shadow-sm p-6 mb-6 border-2 ${activeTab === 'current' ? 'bg-blue-50 border-blue-200' : 'bg-purple-50 border-purple-200'}`}
+      tabIndex={0}
+    > 
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           {activeTab === 'current' ? (
@@ -40,14 +85,16 @@ export default function BulletinAnalysis({
                 <>
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
-                    Nur Bilddateien (JPG, PNG)
+                    Nur Bilddateien (JPG, PNG)<br />
+                    <span className="text-xs text-gray-500">oder Cmd+V / Ctrl+V zum Einfügen</span>
                   </p>
                 </>
               ) : (
                 <>
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
-                    Bilddatei (JPG, PNG) oder PDF
+                    Bilddatei (JPG, PNG) oder PDF<br />
+                    <span className="text-xs text-gray-500">oder Cmd+V / Ctrl+V zum Einfügen</span>
                   </p>
                 </>
               )}

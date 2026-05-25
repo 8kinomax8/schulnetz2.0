@@ -194,13 +194,18 @@ export default function BMGradeCalculator() {
   useEffect(() => {
     const localTourDone = localStorage.getItem('schulnetz_tour_completed') === 'true';
     
+    console.log('🔄 Joyride check:', { dataLoaded, user: !!user, isTourCompleted, localTourDone, decisionMade: tourDecisionMade.current });
+
     // Only launch tour if:
     // 1. Data has loaded (user is ready)
-    // 2. We haven't made a decision about the tour yet (persist across page reloads)
-    // 3. Tour hasn't been marked as completed (this is permanent across devices)
+    // 2. We haven't made a decision about the tour yet
     if (dataLoaded && !tourDecisionMade.current) {
-      const shouldLaunchTour = (user && !isTourCompleted) || (!user && !localTourDone);
+      // The tour is completed if it is marked as completed in the DB OR in localStorage
+      const isCompleted = isTourCompleted || localTourDone;
+      const shouldLaunchTour = !isCompleted;
       
+      console.log('🚀 Joyride decision:', { shouldLaunchTour, isCompleted });
+
       tourDecisionMade.current = true; // Mark decision made - NEVER evaluate this again in this session
       
       if (shouldLaunchTour) {
@@ -908,7 +913,7 @@ export default function BMGradeCalculator() {
     try {
       setEfzIsAnalyzing(true);
       setEfzAnalysisResult(null);
-      const result = await analyzeBulletin(file, 'BULLETIN');
+      const result = await analyzeBulletin(file, 'EFZ_BULLETIN');
       const semesters = Array.isArray(result?.semesters)
         ? result.semesters
         : (result?.grades ? [{ semester: result.semester || currentSemester, grades: result.grades }] : []);
