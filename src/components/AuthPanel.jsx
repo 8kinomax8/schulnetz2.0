@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks';
-import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff, Github, Google } from 'lucide-react';
+import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff, Github, Chrome } from 'lucide-react';
 import AccountSettings from './AccountSettings';
 
 export default function AuthPanel() {
@@ -304,7 +304,7 @@ export default function AuthPanel() {
                 disabled={pending}
                 className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Google className="h-5 w-5" />
+                <Chrome className="h-5 w-5" />
                 Google
               </button>
               <button
