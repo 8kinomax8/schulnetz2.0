@@ -424,7 +424,15 @@ export default async function handler(req, res) {
     }
 
     // ========== INPUT VALIDATION ==========
-    const { image, scanType } = req.body;
+    let { image, scanType } = req.body;
+
+    // Normalize scanType to avoid case-sensitivity or naming issues
+    if (scanType) {
+      scanType = String(scanType).toUpperCase();
+      if (scanType === 'ZEUGNISS') {
+        scanType = 'BULLETIN';
+      }
+    }
 
     if (!image) {
       console.warn('[Validation] No image provided');

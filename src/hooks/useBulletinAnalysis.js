@@ -170,7 +170,7 @@ export const useBulletinAnalysis = (
     // "Previous Bulletins" mode: image or PDF
     if (activeTab === 'previous') {
       if (file.type.startsWith('image/') || file.type === 'application/pdf') {
-        analyzeFile(file, 'Bulletin');
+        analyzeFile(file, 'BULLETIN');
       }
     }
   };
