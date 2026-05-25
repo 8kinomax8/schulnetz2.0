@@ -2,20 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
 import { Joyride, STATUS } from 'react-joyride';
 import { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
-import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel } from './components';
+import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel, OnboardingSetup } from './components';
 import AccountSettings from './components/AccountSettings';
 import {
   useLoadData,
   useSaveData,
   useGradeCalculations,
   useBulletinAnalysis,
-  useApprenticeshipCalculations
+  useApprenticeshipCalculations,
+  useOnboarding
 } from './hooks';
 import { useAuth } from './hooks/useAuth';
 import { useDatabase } from './hooks/useDatabase';
 import SemesterPrompt from './components/SemesterPrompt';
 import { storage, formatSwissDate } from './utils';
 import { analyzeBulletin } from './services/apiService';
+import { setUserPreferences } from './services/userPreferencesService';
 
 const swissDateToSQL = (swissDate) => {
   if (!swissDate || typeof swissDate !== 'string') return '';
@@ -126,6 +128,7 @@ const LoadingState = () => (
 
 export default function BMGradeCalculator() {
   const { user, authLoading, signOut } = useAuth();
+  const { needsOnboarding, onboardingLoading, completeOnboarding } = useOnboarding(user);
 
   // ============ Application state ============
   const [bmType, setBmType] = useState('TAL');
@@ -191,10 +194,9 @@ export default function BMGradeCalculator() {
     // Both logged in (via isTourCompleted) OR not logged in (via localStorage)
     const localTourDone = localStorage.getItem('schulnetz_tour_completed') === 'true';
     if (dataLoaded) {
-       if ((user && !isTourCompleted) && (!user && !localTourDone)) {
+       // Launch tour if: (logged in AND tour not completed) OR (not logged in AND tour not completed locally)
+       if ((user && !isTourCompleted) || (!user && !localTourDone)) {
          // Wait a bit to let UI render
-         setTimeout(() => { setRunTour(true); }, 1500);
-       } else if (!user && !localTourDone) {
          setTimeout(() => { setRunTour(true); }, 1500);
        }
     }
@@ -936,7 +938,7 @@ export default function BMGradeCalculator() {
   };
 
   // Conditional rendering after all hooks
-  if (authLoading) {
+  if (authLoading || onboardingLoading) {
     return (
       <AuthBackdrop contentClassName="w-full max-w-sm">
         <LoadingState />
@@ -948,6 +950,19 @@ export default function BMGradeCalculator() {
       <AuthBackdrop>
         <AuthPanel />
       </AuthBackdrop>
+    );
+  }
+
+  // Display onboarding setup if necessary
+  if (needsOnboarding) {
+    return (
+      <OnboardingSetup
+        onComplete={async ({ currentSemester, bmType }) => {
+          await completeOnboarding({ currentSemester, bmType });
+          setBmType(bmType);
+          setCurrentSemester(currentSemester);
+        }}
+      />
     );
   }
 

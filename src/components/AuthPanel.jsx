@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks';
-import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff, Github, Chrome } from 'lucide-react';
+import { User, Mail, Lock, LogOut, Settings, UserCircle, CheckCircle, Eye, EyeOff, Github, Google } from 'lucide-react';
 import AccountSettings from './AccountSettings';
 
 export default function AuthPanel() {
@@ -141,7 +141,7 @@ export default function AuthPanel() {
             )}
             {mode === 'signup' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
+                <label htmlFor="displayName" className="block text-sm font-medium text-gray-700 mb-2 text-left">
                   Anzeigename
                 </label>
                 <div className="relative">
@@ -149,6 +149,7 @@ export default function AuthPanel() {
                     <UserCircle className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
+                    id="displayName"
                     type="text"
                     placeholder="Anzeigename"
                     value={displayName}
@@ -157,13 +158,14 @@ export default function AuthPanel() {
                       if (signupSuccess) setSignupSuccess(false);
                     }}
                     required
+                    autoComplete="name"
                     className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-colors text-left"
                   />
                 </div>
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 E-Mail-Adresse
               </label>
               <div className="relative">
@@ -171,6 +173,7 @@ export default function AuthPanel() {
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
+                  id="email"
                   type="email"
                   name="email"
                   placeholder="name@beispiel.ch"
@@ -187,7 +190,7 @@ export default function AuthPanel() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                 Passwort
               </label>
               <div className="relative">
@@ -195,6 +198,7 @@ export default function AuthPanel() {
                   <Lock className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
+                  id="password"
                   type={showPassword ? 'text' : 'password'}
                   name="password"
                   placeholder="••••••••"
@@ -222,7 +226,7 @@ export default function AuthPanel() {
 
               {mode === 'signup' && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
                     Passwort bestätigen
                   </label>
                   <div className="relative">
@@ -230,6 +234,7 @@ export default function AuthPanel() {
                       <Lock className="h-5 w-5 text-gray-400" />
                     </div>
                     <input
+                      id="confirmPassword"
                       type={showConfirmPassword ? 'text' : 'password'}
                       name="confirm-password"
                       placeholder="••••••••"
@@ -299,7 +304,7 @@ export default function AuthPanel() {
                 disabled={pending}
                 className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <Chrome className="h-5 w-5" />
+                <Google className="h-5 w-5" />
                 Google
               </button>
               <button
