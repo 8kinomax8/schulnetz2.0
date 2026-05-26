@@ -52,9 +52,43 @@ const updateRateLimitState = (headers) => {
  */
 const fileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
+    // Check file size upfront (5MB limit for FileReader to be safe)
+    const MAX_FILEREADER_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_FILEREADER_SIZE) {
+      reject(new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILEREADER_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`));
+      return;
+    }
+
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',')[1]);
-    reader.onerror = reject;
+    
+    // Add error handler
+    reader.onerror = () => {
+      let errorMsg = 'Erreur lors de la lecture du fichier.';
+      if (reader.error?.name === 'NotReadableError') {
+        errorMsg = 'Le fichier ne peut pas être lu (permissions insuffisantes ou fichier corrompu).';
+      } else if (reader.error?.name === 'SecurityError') {
+        errorMsg = 'Erreur de sécurité lors de la lecture du fichier.';
+      }
+      reject(new Error(errorMsg));
+    };
+
+    // Add abort handler
+    reader.onabort = () => {
+      reject(new Error('La lecture du fichier a été annulée.'));
+    };
+
+    reader.onload = () => {
+      try {
+        const base64Part = reader.result.split(',')[1];
+        if (!base64Part) {
+          throw new Error('Impossible d\'extraire les données base64 du fichier.');
+        }
+        resolve(base64Part);
+      } catch (e) {
+        reject(new Error(`Erreur lors du traitement du fichier: ${e.message}`));
+      }
+    };
+
     reader.readAsDataURL(file);
   });
 };
@@ -162,13 +196,19 @@ const parseCleanJson = (text) => {
  */
 export const analyzeBulletin = async (file, scanType = 'BULLETIN') => {
   try {
-    const base64Data = await fileToBase64(file);
-    
-    // Validate file type
+    // Validate file type first
     const mimeType = file.type || 'image/jpeg';
     if (!mimeType.startsWith('image/') && mimeType !== 'application/pdf') {
-      throw new Error(`Unsupported file type: ${mimeType}. Only images and PDFs are accepted.`);
+      throw new Error(`Format de fichier non supporté: ${mimeType}. Acceptés: images (JPG, PNG, WebP) ou PDF.`);
     }
+
+    // Validate file size before attempting conversion
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB - safe limit for FileReader
+    if (file.size > MAX_FILE_SIZE) {
+      throw new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`);
+    }
+
+    const base64Data = await fileToBase64(file);
     
     // Get authentication token
     const { data } = await supabase.auth.getSession();

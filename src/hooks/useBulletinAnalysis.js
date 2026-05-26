@@ -38,16 +38,6 @@ export const useBulletinAnalysis = (
     setIsAnalyzing(true);
     setAnalysisResult(null);
 
-    // Guard against oversized files that trigger 413 + missing CORS headers
-    const MAX_UPLOAD_BYTES = 12 * 1024 * 1024; // 12 MB
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setAnalysisResult({
-        error: 'Fichier trop volumineux (>12 MB). Merci de compresser ou de fournir un extrait plus petit.'
-      });
-      setIsAnalyzing(false);
-      return;
-    }
-
     try {
       const result = await analyzeBulletin(file, scanType);
 
