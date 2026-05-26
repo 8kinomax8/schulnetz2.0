@@ -88,7 +88,7 @@ export const LEKTIONENTAFEL = {
     'Englisch': [3, 4, 5, 6, 7, 8],
     'Französisch': [1, 2, 3],
     'Mathematik': [1, 2, 3, 4],
-    'Mathematik Schwerpunktbereich': [4, 5, 6, 7, 8],
+    'Mathematik Schwerpunktbereich': [5, 6, 7, 8],
     'Naturwissenschaften': [3, 4, 5, 6, 7, 8],
     'Geschichte und Politik': [4, 5, 6],
     'Wirtschaft und Recht': [1, 2],

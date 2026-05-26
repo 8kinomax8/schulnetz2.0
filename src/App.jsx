@@ -202,25 +202,17 @@ export default function BMGradeCalculator() {
   });
   const tourLaunchedThisSession = useRef(false); // Track if tour has been launched this session
 
-  // Run the tour ONCE when data is loaded (only on first login/visit)
-  useEffect(() => {
-    console.log('🔄 Joyride check:', { dataLoaded, isTourCompleted, tourLaunched: tourLaunchedThisSession.current });
-
-    // Only launch tour if:
-    // 1. Data has loaded (user is ready)
-    // 2. Tour hasn't already been launched this session
-    // 3. Tour is not completed (from localStorage or DB)
-    if (dataLoaded && !tourLaunchedThisSession.current && !isTourCompleted) {
-      console.log('🚀 Joyride decision: launching tour');
-
-      tourLaunchedThisSession.current = true; // Mark as launched this session
-      
-      // Wait a bit to let UI render
-      setTimeout(() => {
-        setRunTour(true);
-      }, 1500);
-    }
-  }, [dataLoaded, isTourCompleted]);
+  // DISABLED: Auto-launch of Joyride tour
+  // useEffect(() => {
+  //   console.log('🔄 Joyride check:', { dataLoaded, isTourCompleted, tourLaunched: tourLaunchedThisSession.current });
+  //   if (dataLoaded && !tourLaunchedThisSession.current && !isTourCompleted) {
+  //     console.log('🚀 Joyride decision: launching tour');
+  //     tourLaunchedThisSession.current = true;
+  //     setTimeout(() => {
+  //       setRunTour(true);
+  //     }, 1500);
+  //   }
+  // }, [dataLoaded, isTourCompleted]);
 
   // Ref to track if initial data load has been attempted
   const initialLoadAttempted = useRef(false);
