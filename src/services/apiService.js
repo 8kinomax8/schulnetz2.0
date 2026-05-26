@@ -555,10 +555,10 @@ export const processBulletinScan = (result, currentSemesterGrades, validSubjects
     return Number.isFinite(parsed) ? parsed : null;
   };
 
-  // Track which codes are üK (have low average grades or special markers)
+  // Track which codes are üK (start with "ueK_" or are exactly "ueK")
   const isUekCode = (code) => {
     const normalized = String(code).toLowerCase();
-    return normalized === 'uek' || normalized.startsWith('m4') || normalized.startsWith('m5') || normalized.startsWith('m6');
+    return normalized === 'uek' || normalized.startsWith('uek_');
   };
 
   const updatedSemesterGrades = { ...currentSemesterGrades };
@@ -594,9 +594,11 @@ export const processBulletinScan = (result, currentSemesterGrades, validSubjects
       if (isUekCode(k)) {
         uekGradesForSemester[k] = normalizedGrade;
       } else {
-        // Regular module - use subject mapping
-        const canon = normalizeSubjectName(k, validSubjects);
-        if (!canon) return;
+        // Regular module - try to map or use as-is if it's a generated code (M###)
+        const isGeneratedModuleCode = /^M\d{3}$/i.test(k);
+        const canon = isGeneratedModuleCode ? k : normalizeSubjectName(k, validSubjects);
+        
+        if (!canon) return; // Skip if not a generated code and can't be normalized
         mappedGrades[canon] = normalizedGrade;
       }
     });
@@ -630,10 +632,19 @@ export const processBulletinScan = (result, currentSemesterGrades, validSubjects
     });
 
     if (Object.keys(gradesPerSemester).length > 0) {
+      // Extract a better display name from the code
+      let displayName = uekCode;
+      if (uekCode.toLowerCase().startsWith('uek_')) {
+        // Extract the descriptive part (e.g., "ueK_Linux" → "Linux")
+        displayName = uekCode.substring(4);
+      } else if (uekCode.toLowerCase() === 'uek') {
+        displayName = 'Übungskurs';
+      }
+      
       previousUekGrades.push({
         id: Date.now() + Math.random(), // Unique ID for this entry
         code: uekCode,
-        name: `Zeugnis ${uekCode}`,
+        name: displayName,
         grades: gradesPerSemester // { semester: grade, ... }
       });
     }

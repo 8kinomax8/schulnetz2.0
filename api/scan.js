@@ -128,70 +128,97 @@ If unclear format: {"error": "could not parse SAL format"}
 const EFZ_BULLETIN_PROMPT = `You are analyzing a Swiss apprenticeship school report (Berufsschule Zeugnis) showing module/skill grades from an IT/computer science program.
 
 The bulletin is displayed as a TABLE:
-- Each ROW = one module or üK (Übungskurs)
-- Each COLUMN = one semester (S1, S2, S3, S4, etc.)
-- Each CELL = the numeric grade for that module/üK in that semester
+- Each ROW = one module/subject or übungskurs (üK)
+- Each COLUMN = one semester (labeled as Semester, S, or just numbers 1, 2, 3, 4)
+- Each CELL = the numeric grade for that module in that semester
 
-IMPORTANT: There can be MULTIPLE üK entries per semster (not just one). Each üK has its own row/line.
+STRUCTURE YOU WILL SEE:
+- Left column header: "Fach", "Fächter", "Subject", "Module", "Übungskurs" or similar
+- Top row headers: Semester numbers (1, 2, 3, 4, etc.) or labels like "S1", "S2", or "Semester 1", "Semester 2"
+- Data rows: Each row has a subject/module name and grades for each semester
 
-EXAMPLE of what you'll see:
+IDENTIFYING MODULES vs ÜBUNGSKURSE (üK):
+1. Modules: Regular subjects (e.g., "Informatikkompetenzen", "Datenbanken", etc.)
+2. Übungskurse (üK): Lines containing keywords like:
+   - "Übungskurs" or "üK" or "ÜK" anywhere in the line
+   - Specific practice course names (e.g., "Linux-üK", "Datenbank-üK", "Web-üK")
+   - These are typically listed in a separate section or marked distinctly
+
+CODE GENERATION FOR ROWS:
+- If a row has a visible code (M152, M401, etc.): USE IT AS-IS
+- If a row has NO CODE but IS A MODULE: Generate code like "M###" (e.g., M117, M122)
+  * Assign codes sequentially (M101-M199 for regular modules)
+- If a row has NO CODE but IS AN ÜBUNGSKURS: Mark it as "ueK" and include the descriptive name
+  * Example: "ueK_Linux", "ueK_Database", "ueK_Web"
+  * Prefer using the descriptive name after "ueK_"
+
+EXAMPLE of what a real bulletin looks like:
 \`\`\`
-                        S1    S2    S3    S4
-M117 (Websiten)       5.0   4.5   5.5   4.0
-M122 (Datenbaken)     4.5   4.0   5.0   3.5
-M152 (Multimedia)     5.5   5.0   4.5   4.0
-...
-M401 (Linux üK)       5.5   5.0   5.5   5.0
-M402 (Datenbank üK)   4.5   4.5   5.0   4.5
+Fach                                    Semester 1   Semester 2   Semester 3   Semester 4
+Informatikkompetenzen                   5.5          5.0          6.0          5.5
+Kleine Datensysteme modellieren         6.0          6.0          6.0          5.0
+Datenbanken & Datenschutz              5.5          5.0          5.5          5.0
+[... more modules ...]
+Übungskurs Linux                        5.5          5.0          -            5.5
+Übungskurs Datenbanken                  4.5          4.5          5.0          4.5
 \`\`\`
 
 OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 {
   "semesters": [
-    {"semester": 1, "grades": {"M117": 5.0, "M122": 4.5, "M152": 5.5, "M401": 5.5, "M402": 4.5}},
-    {"semester": 2, "grades": {"M117": 4.5, "M122": 4.0, "M152": 5.0, "M401": 5.0, "M402": 4.5}},
-    {"semester": 3, "grades": {"M117": 5.5, "M122": 5.0, "M152": 4.5, "M401": 5.5, "M402": 5.0}},
-    {"semester": 4, "grades": {"M117": 4.0, "M122": 3.5, "M152": 4.0, "M401": 5.0, "M402": 4.5}}
+    {"semester": 1, "grades": {"M101": 5.5, "M102": 6.0, "M103": 5.5, "ueK_Linux": 5.5, "ueK_Database": 4.5}},
+    {"semester": 2, "grades": {"M101": 5.0, "M102": 6.0, "M103": 5.0, "ueK_Linux": 5.0, "ueK_Database": 4.5}},
+    {"semester": 3, "grades": {"M101": 6.0, "M102": 6.0, "M103": 5.5, "ueK_Database": 5.0}},
+    {"semester": 4, "grades": {"M101": 5.5, "M102": 5.0, "M103": 5.0, "ueK_Linux": 5.5, "ueK_Database": 4.5}}
   ]
 }
 
 CRITICAL RULES - READ CAREFULLY:
 
-1. IDENTIFY TABLE STRUCTURE:
-   - Row headers = module codes (M###) or übungskurs codes (M###)
-   - Column headers = semester labels (S1, S2, Sem1, Semester 1, etc.) or dates
-   - Match each cell value to its row (module/übungskurs) and column (semester)
+1. TABLE STRUCTURE IDENTIFICATION:
+   - First column contains subject/module names (may wrap across multiple lines)
+   - Remaining columns are semesters with numeric grades
+   - Look for patterns: left side = descriptions, right side = numbers
 
-2. FOR MODULES & ÜBUNGSKURSE: Use ONLY "M" + 3 digits
-   - If you see: "m152", "Module 152", "M 152", "M-152" → normalize to "M152"
-   - If you see: "üK", "Ük", "ÜK", "Übungskurs", "üKurs", "Linux üK", "Datenbank üK" → use IDENTIFYING CODE
-     * These are NOT the "ueK" generic marker - FIND THE SPECIFIC M### CODE for each üK row
-     * Examples: "M401", "M402", "M403" (Übungskurs codes are still M+3 digits)
-   - Module/Übungskurs code is ALWAYS in the row header, NOT in a cell
-   - Extract EVERY module and übungskurs you see
+2. SEMESTER IDENTIFICATION:
+   - Column headers tell you which semester: "Semester 1", "S1", "1", "2", "3", "4", etc.
+   - Map column positions to semester numbers (1st data column = semester 1, etc.)
+   - If no header, assume columns are sequential (1, 2, 3, 4, ...)
 
-3. SPECIAL CASE - üK WITHOUT VISIBLE CODE:
-   - If an üK line has no visible code, use "ueK" as fallback
-   - But PREFER using the actual code if you can see it (even faintly or partially)
+3. MODULE vs ÜBUNGSKURS DISTINCTION:
+   - Keywords that indicate ÜBUNGSKURS: "Übungskurs", "üK", "ÜK", "-üK", "- ÜK"
+   - All other subject lines are MODULES
+   - This distinction MUST be preserved for proper categorization
 
-4. SEMESTER IDENTIFICATION:
-   - Column headers tell you which semester: S1, S2, S3, S4, Sem 1, Sem 2, etc.
-   - Map each column to its semester number (1, 2, 3, 4, etc.)
+4. GRADE EXTRACTION:
+   - Only extract VISIBLE numeric grades (5.0, 4.5, 3.5, 6.0, etc.)
+   - If a cell is empty, "-", "—", or blank: SKIP that semester for that entry
+   - Ignore any text in grade cells; only take the number
+   - Decimal format: "5.0", "4.5", "3.5" are valid; "5", "4" should be treated as-is
 
-5. GRADE EXTRACTION:
-   - Only extract VISIBLE numeric grades in cells (5.0, 4.5, 3.5, etc.)
-   - If a cell is empty or shows "-" or "—", SKIP that semester for that module
-   - Ignore any grades outside the main table
+5. CODE GENERATION RULES:
+   - Check each row for an existing code (M###, M###, etc.)
+   - If row HAS a code: extract and use it exactly as-is
+   - If row has NO code and IS A MODULE: Assign a sequential M-code (M101, M102, M103, ...)
+   - If row has NO code and IS AN ÜBUNGSKURS: Use "ueK" + descriptive part (e.g., "ueK_Linux", "ueK_Database")
+   - Do NOT invent codes; derive them from visible information
 
 6. HALLUCINATION PREVENTION:
-   - Do NOT invent modules, semesters, or grades not visible in the table
+   - Do NOT invent rows, grades, or modules not visible
    - Do NOT create entries for empty cells
-   - Do NOT misread column headers as grades
-   - If a value is unclear, skip it entirely
+   - Do NOT misread headers or formatting as grades
+   - Do NOT assume semesters exist if no grade column is present
+   - If uncertain about a value, SKIP it
+
+7. HANDLING MULTI-LINE SUBJECT NAMES:
+   - Subject names may span multiple lines (e.g., wrapped text)
+   - Combine all lines into a single subject identifier
+   - Use the full name (or a shortened version) for the code if generating one
 
 If no clear table found: {"error": "no grades table found"}
 If table exists but is empty: {"error": "table found but no numeric grades visible"}
 `;
+
 
 // ============================================================================
 // HELPERS

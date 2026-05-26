@@ -148,6 +148,7 @@ export default function BMGradeCalculator() {
   const [semesterPlans, setSemesterPlans] = useState({});
   const [subjectGoals, setSubjectGoals] = useState({});
   const [maturnoteGoal, setMaturnoteGoal] = useState(5.0);
+  const [examGoals, setExamGoals] = useState({});
   const [mainTab, setMainTab] = useState('overview');
   const [bmTab, setBmTab] = useState('current');
   const [efzTab, setEfzTab] = useState('scan-sal');
@@ -2133,16 +2134,12 @@ export default function BMGradeCalculator() {
 
               {efzTab === 'scan-sal' && (
                 <>
-                  <div className="mb-6 rounded-xl border border-amber-100 bg-amber-50 p-4">
-                    <div className="text-xs text-amber-700 mb-1">Moduldurchschnitt</div>
-                    <div className="text-3xl font-bold text-amber-900">
-                      {formatAverage(modulesAverage, rawModulesAverage)}
-                    </div>
-                  </div>
-
                   <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-blue-50 border-blue-200">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-800">SAL-Module scannen</h3>
+                      <Camera className="w-5 h-5 text-purple-600" />
+                      <h3 className="text-lg font-semibold text-gray-800">
+                      SAL-Module scannen
+                      </h3>
                     </div>
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="text-sm text-gray-600">SAL-Screenshot importieren (JPG, PNG)</div>
@@ -2905,10 +2902,10 @@ export default function BMGradeCalculator() {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <h3 className="font-semibold text-blue-900 mb-1">Gesamtdurchschnitt (Maturnote)</h3>
-                        <p className="text-xs text-gray-600">Gewichtete Durchschnitte aller Prüfungsfächer</p>
+                        <p className="text-xs text-gray-600">Gewichtete Durchschnitte aller Prüfungsfächer. Du kannst auch ein spezifisches Ziel pro Fach definieren.</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600">Ziel:</span>
+                        <span className="text-xs text-gray-600">Standard-Ziel:</span>
                         <input
                           type="number"
                           step="0.1"
@@ -3004,7 +3001,8 @@ export default function BMGradeCalculator() {
                       const simulatedExamGrade = examSimulator[subject];
                       const definitiveExamGrade = finalExamGrades[subject];
                       const maturnote = calculations.getExamAverage(subject);
-                      const requiredExam = calculations.getRequiredExamGrade(subject, maturnoteGoal);
+                      const subjectGoal = examGoals[subject] || maturnoteGoal;
+                      const requiredExam = calculations.getRequiredExamGrade(subject, subjectGoal);
                       const isExamSubject = EXAM_SUBJECTS[bmType].includes(subject);
                       const isInterdisciplinary = BM_SUBJECTS[bmType].interdisziplinar.includes(subject);
                       const hasFinalInput = isExamSubject || isInterdisciplinary;
@@ -3029,6 +3027,26 @@ export default function BMGradeCalculator() {
                               </div>
                             )}
                           </div>
+
+                          {hasFinalInput && (
+                            <div className="mb-3 p-3 bg-white/50 rounded border border-gray-200">
+                              <label className="block text-xs text-gray-700 mb-2">Ziel Maturnote für {subject}</label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="4"
+                                max="6"
+                                value={subjectGoal}
+                                onChange={(e) => {
+                                  const value = parseFloat(e.target.value);
+                                  if (!isNaN(value) && value >= 4 && value <= 6) {
+                                    setExamGoals({ ...examGoals, [subject]: value });
+                                  }
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded text-sm font-semibold text-center"
+                              />
+                            </div>
+                          )}
 
                           {hasFinalInput && (
                             <div className="grid gap-3 sm:grid-cols-2 mb-3">
