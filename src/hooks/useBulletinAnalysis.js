@@ -12,8 +12,7 @@ import { formatSwissDate } from '../utils';
  * @param {number} currentSemester - Semestre actuel
  * @param {Function} onAddControl - Callback pour ajouter un contrôle à Supabase
  * @param {Function} onSaveBulletin - Callback pour sauvegarder une note de bulletin à Supabase
- * @param {Function} setPreviousUekGrades - Setter pour les üK historiques du bulletin
- * @returns {Object} {isAnalyzing, analysisResult, analyzeFil, handleFileUpload}
+ * @returns {Object} {isAnalyzing, analysisResult, analyzeFile, handleFileUpload, resetAnalysis}
  */
 export const useBulletinAnalysis = (
   subjects,
@@ -23,8 +22,7 @@ export const useBulletinAnalysis = (
   validSubjects,
   currentSemester,
   onAddControl = null,
-  onSaveBulletin = null,
-  setPreviousUekGrades = null
+  onSaveBulletin = null
 ) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);

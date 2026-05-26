@@ -670,9 +670,15 @@ export default function BMGradeCalculator() {
     validSubjects,
     currentSemester,
     addControlToDatabase,
-    saveBulletinToDatabase,
-    setPreviousUekGrades
+    saveBulletinToDatabase
   );
+
+  // Handle previousUekGrades from bulletin scan
+  useEffect(() => {
+    if (analysisResult?.previousUekGrades && analysisResult.previousUekGrades.length > 0) {
+      setPreviousUekGrades(analysisResult.previousUekGrades);
+    }
+  }, [analysisResult?.previousUekGrades]);
 
   // Calculations
   const calculations = useGradeCalculations(
@@ -2513,7 +2519,7 @@ export default function BMGradeCalculator() {
 
                   {uekGrades && uekGrades.length > 0 && (
                     <div className="mb-6 w-full bg-white rounded-xl border border-gray-200 p-4">
-                      <h2 className="text-2xl font-bold text-gray-800 mb-4">Alte Zeugnisse (manuell hinzugefügt)</h2>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">Alte üK-Noten</h3>
                       <div className="space-y-2">
                         {uekGrades.map((uek) => (
                           <div key={uek.id} className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
