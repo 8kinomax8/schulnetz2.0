@@ -61,23 +61,41 @@ const fileToBase64 = (file) => {
 
     const reader = new FileReader();
     
+    // Add timeout protection (30 seconds)
+    const timeoutId = setTimeout(() => {
+      reader.abort();
+      reject(new Error('Délai d\'attente dépassé lors de la lecture du fichier. Le fichier peut être trop volumineux ou corrompu.'));
+    }, 30000);
+
     // Add error handler
     reader.onerror = () => {
+      clearTimeout(timeoutId);
       let errorMsg = 'Erreur lors de la lecture du fichier.';
-      if (reader.error?.name === 'NotReadableError') {
-        errorMsg = 'Le fichier ne peut pas être lu (permissions insuffisantes ou fichier corrompu).';
-      } else if (reader.error?.name === 'SecurityError') {
-        errorMsg = 'Erreur de sécurité lors de la lecture du fichier.';
+      const errorName = reader.error?.name;
+      
+      console.error(`FileReader error: ${errorName}`, reader.error);
+      
+      if (errorName === 'NotReadableError') {
+        errorMsg = 'Le fichier ne peut pas être lu. Il peut être corrompu, protégé ou mal formaté. Essayez de:\n' +
+                   '• Télécharger une nouvelle copie du fichier\n' +
+                   '• Convertir le PDF en image (JPG/PNG)\n' +
+                   '• Compresser le fichier PDF';
+      } else if (errorName === 'SecurityError') {
+        errorMsg = 'Erreur de sécurité lors de la lecture du fichier. Cela peut arriver avec certains fichiers PDF protégés.';
+      } else if (errorName === 'EncodingError') {
+        errorMsg = 'Erreur d\'encodage du fichier. Le fichier peut être mal formaté.';
       }
       reject(new Error(errorMsg));
     };
 
     // Add abort handler
     reader.onabort = () => {
+      clearTimeout(timeoutId);
       reject(new Error('La lecture du fichier a été annulée.'));
     };
 
     reader.onload = () => {
+      clearTimeout(timeoutId);
       try {
         const base64Part = reader.result.split(',')[1];
         if (!base64Part) {
