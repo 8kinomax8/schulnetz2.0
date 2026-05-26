@@ -1,4 +1,3 @@
-import { useAuth } from './useAuth';
 import { storage } from '../utils/storage';
 import { supabase } from '../services/supabaseClient';
 import * as gradeService from '../services/gradeService';
@@ -11,8 +10,7 @@ import { useState, useCallback } from 'react';
  * Custom hook to manage database operations
  * Handles user sync, grades, semester plans, goals, and exam simulations
  */
-export function useDatabase() {
-  const { user } = useAuth();
+export function useDatabase(user) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -57,7 +55,8 @@ export function useDatabase() {
     let nextPreferences = preferences || {
       current_semester: localSemester,
       bm_type: localSettings.bm_type || bmType || 'TAL',
-      maturanote_goal: localSettings.maturanote_goal
+      maturanote_goal: localSettings.maturanote_goal,
+      tour_completed: false
     };
 
     if (!preferences) {
@@ -68,7 +67,7 @@ export function useDatabase() {
           current_semester: nextPreferences.current_semester,
           bm_type: nextPreferences.bm_type,
           maturanote_goal: nextPreferences.maturanote_goal,
-          tour_completed: nextPreferences.tour_completed
+          tour_completed: false
         }], { onConflict: 'user_id' })
         .select('current_semester, bm_type, maturanote_goal, tour_completed, created_at, updated_at')
         .single();
@@ -87,7 +86,7 @@ export function useDatabase() {
       current_semester: nextPreferences.current_semester || 1,
       bm_type: nextPreferences.bm_type || bmType || 'TAL',
       maturanote_goal: nextPreferences.maturanote_goal || 5.0,
-      tour_completed: nextPreferences.tour_completed || false,
+      tour_completed: !!nextPreferences.tour_completed,
       needsSemesterSetup: !preferences && !hasLocalSemester
     };
   }, [userId, userEmail, userName]);

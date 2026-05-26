@@ -15,14 +15,15 @@ export async function getUserPreferences() {
 /**
  * Crée ou met à jour les préférences utilisateur
  */
-export async function setUserPreferences({ currentSemester, bmType, maturanoteGoal = 5.0 }) {
+export async function setUserPreferences({ currentSemester, bmType, maturanoteGoal = 5.0, tourCompleted = false }) {
   const { data, error } = await supabase
     .from('user_preferences')
     .upsert(
       {
         current_semester: currentSemester,
         bm_type: bmType,
-        maturanote_goal: maturanoteGoal
+        maturanote_goal: maturanoteGoal,
+        tour_completed: tourCompleted
       },
       { onConflict: 'user_id' }
     )

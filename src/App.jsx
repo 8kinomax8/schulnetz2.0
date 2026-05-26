@@ -176,6 +176,7 @@ export default function BMGradeCalculator() {
   // State for manual entry of old module averages (EFZ)
   const [efzManualModuleId, setEfzManualModuleId] = useState('');
   const [efzManualModuleAverage, setEfzManualModuleAverage] = useState('');
+  const [efzManualModuleSemester, setEfzManualModuleSemester] = useState(1);
   const [efzManualUekAverage, setEfzManualUekAverage] = useState('');
   const [efzManualUekTheme, setEfzManualUekTheme] = useState('');
   const [signOutPending, setSignOutPending] = useState(false);
@@ -190,7 +191,7 @@ export default function BMGradeCalculator() {
   const validSubjects = new Set(Object.keys(LEKTIONENTAFEL[bmType] || {}));
 
   // Database hook
-  const database = useDatabase();
+  const database = useDatabase(user);
   const [dataLoaded, setDataLoaded] = useState(false);
 
   // Tutorial State
@@ -230,9 +231,11 @@ export default function BMGradeCalculator() {
       setRunTour(false);
       localStorage.setItem('schulnetz_tour_completed', 'true');
       setIsTourCompleted(true);
-      if (user && database.updateTourCompleted) {
+      if (user && database?.updateTourCompleted) {
          try {
+           console.log('💾 Saving tour completed status to DB...');
            await database.updateTourCompleted(true);
+           console.log('✅ Tour completed status saved to DB');
          } catch (e) {
            console.error("Failed to save tour status to DB:", e);
          }
@@ -252,7 +255,7 @@ export default function BMGradeCalculator() {
   useEffect(() => {
     const loadFromDatabase = async () => {
       console.log('🔍 loadFromDatabase called', { user: !!user, dataLoaded, loading: database.loading, userId: database.userId, authLoading, attempted: initialLoadAttempted.current });
-      if (authLoading || !user || dataLoaded || database.loading || initialLoadAttempted.current) return;
+      if (authLoading || !user || !database.userId || dataLoaded || database.loading || initialLoadAttempted.current) return;
 
       // Mark attempt to avoid multiple concurrent loads
       initialLoadAttempted.current = true;
@@ -363,19 +366,15 @@ export default function BMGradeCalculator() {
         setExamSimulator(examsFromDb);
         setFinalExamGrades(finalExamsFromDb);
 
-        setDataLoaded(true);
-
         // Load EFZ / Berufsschule data if available
         try {
-          // Determine current semester from userData or state
-          const semesterForLoading = userData?.current_semester || currentSemester || 1;
+          // Load modules from ALL semesters (1-8) to ensure manually added modules are not lost
+          // Previously only loaded up to current semester, which missed modules added to future semesters
+          console.log('🔍 Loading EFZ modules for semesters 1-8');
 
-          // Load modules from current semester
-          console.log('🔍 Loading EFZ modules for semesters 1-' + semesterForLoading);
-
-          // Also load modules from all previous semesters for "Alte Zeugnisse"
+          // Load modules from all semesters for "Alte Zeugnisse"
           const allModules = [];
-          for (let s = 1; s <= semesterForLoading; s++) {
+          for (let s = 1; s <= 8; s++) {
             try {
               const semModules = await database.getUserEfzModules(s);
               console.log(`📦 Semester ${s} modules:`, semModules?.length || 0);
@@ -508,6 +507,9 @@ export default function BMGradeCalculator() {
         } catch (err) {
           console.error('❌ EFZ load error:', err);
         }
+
+        // Mark data as loaded AFTER all data (BM and EFZ) has been fully loaded
+        setDataLoaded(true);
       } catch (err) {
         console.error('Error loading data from database:', err);
         // Fallback to localStorage
@@ -517,7 +519,7 @@ export default function BMGradeCalculator() {
 
     loadFromDatabase();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, dataLoaded, authLoading]);
+  }, [user, database.userId, dataLoaded, authLoading]);
 
   // Fallback: Load from localStorage if not logged in
   useLoadData({
@@ -833,12 +835,27 @@ export default function BMGradeCalculator() {
     const existingGrades = moduleGrades[code] || [];
     const isDuplicate = existingGrades.some(g => {
       const storedDate = g.date ? formatSwissDate(g.date) : '';
-      return (
-        Math.abs(parseFloat(g.grade) - normalizedGrade) < 0.01 &&
-        storedDate === normalizedDate &&
-        (g.name || '').trim() === normalizedName &&
-        (g.semester || currentSemester) === targetSemester
-      );
+      const storedGradeDiff = Math.abs(parseFloat(g.grade) - normalizedGrade);
+      const sameSemester = (g.semester || currentSemester) === targetSemester;
+      const sameName = (g.name || '').trim() === normalizedName;
+      const sameDate = storedDate === normalizedDate;
+
+      // For "Zeugnis" imports, check if it's essentially the same record
+      // Same source + same name + same semester = likely duplicate
+      const isImportedAverage = (source === 'import' || source === 'import') && 
+                                (g.source === 'import' || g.source === 'import');
+      const isAverageName = (normalizedName || '').toLowerCase().includes('zeugnis') || 
+                           (normalizedName || '').toLowerCase().includes('durchschnitt');
+      const isStoredAverageName = (g.name || '').toLowerCase().includes('zeugnis') || 
+                                 (g.name || '').toLowerCase().includes('durchschnitt');
+
+      // Strong duplicate: Same type + name + semester + similar grade
+      if (isImportedAverage && isAverageName && isStoredAverageName && sameSemester && sameName && storedGradeDiff < 0.5) {
+        return true;
+      }
+
+      // Exact duplicate: All details match
+      return storedGradeDiff < 0.01 && sameDate && sameName && sameSemester;
     });
 
     if (isDuplicate) return false;
@@ -1463,6 +1480,7 @@ export default function BMGradeCalculator() {
   const addEfzManualModuleAverage = async () => {
     const moduleId = normalizeModuleCode(efzManualModuleId);
     const normalizedAverage = clampGrade(efzManualModuleAverage);
+    const targetSemester = efzManualModuleSemester;
 
     if (!moduleId || normalizedAverage === null) {
       return;
@@ -1470,15 +1488,39 @@ export default function BMGradeCalculator() {
 
     // Find or create the module
     let moduleEntry = moduleCatalog.find(m => m.code === moduleId);
-    const targetSemester = moduleEntry?.semester ?? Math.max(1, currentSemester - 1);
+    let efzId = moduleEntry?.efz_id || null;
     
     if (!moduleEntry) {
-      setModuleCatalog(prev => ([...prev, { code: moduleId, name: '', efz_id: null, semester: targetSemester }]));
+      if (user && database.userId && database.addEfzModule) {
+        try {
+          const created = await database.addEfzModule({ module_code: moduleId, name: '', semester: targetSemester });
+          efzId = created?.id || null;
+        } catch (err) {
+          console.warn('Failed to create EFZ module:', err.message || err);
+        }
+      }
+
+      setModuleCatalog(prev => {
+        if (prev.some(m => m.code === moduleId)) return prev;
+        return [...prev, { code: moduleId, name: '', efz_id: efzId, semester: targetSemester }];
+      });
+      setModuleGrades(prev => (prev[moduleId] ? prev : { ...prev, [moduleId]: [] }));
+      setModulePlans(prev => (prev[moduleId] ? prev : { ...prev, [moduleId]: [] }));
+      setModuleGoals(prev => (prev[moduleId] ? prev : { ...prev, [moduleId]: 5.0 }));
+    } else if (!efzId && user && database.userId && database.addEfzModule) {
+      try {
+        const created = await database.addEfzModule({ module_code: moduleId, name: moduleEntry.name || '', semester: targetSemester });
+        efzId = created?.id || null;
+        setModuleCatalog(prev => prev.map(m => m.code === moduleId ? { ...m, efz_id: efzId } : m));
+      } catch (err) {
+        console.warn('Failed to create EFZ module in DB:', err.message || err);
+      }
     }
 
     // Add as single "grade" with weight 1 (represents the average)
+    const tempId = Date.now() + Math.random();
     const newGrade = {
-      id: Date.now(),
+      id: tempId,
       grade: normalizedAverage,
       weight: 1,
       displayWeight: '1',
@@ -1492,6 +1534,28 @@ export default function BMGradeCalculator() {
       ...prev,
       [moduleId]: [...(prev[moduleId] || []), newGrade]
     }));
+
+    if (user && database.userId && efzId && database.addEfzModuleGrade) {
+      try {
+        const created = await database.addEfzModuleGrade({
+          module_id: efzId,
+          grade: normalizedAverage,
+          weight: 1,
+          date: null,
+          control_name: 'Zeugniss-Durchschnitt',
+          source: 'import',
+          semester: targetSemester
+        });
+        if (created?.id) {
+          setModuleGrades(prev => ({
+            ...prev,
+            [moduleId]: (prev[moduleId] || []).map(g => (g.id === tempId ? { ...g, id: created.id } : g))
+          }));
+        }
+      } catch (err) {
+        console.warn('Error saving manual module average to EFZ DB:', err.message || err);
+      }
+    }
 
     // Clear form
     setEfzManualModuleId('');
@@ -2258,7 +2322,7 @@ export default function BMGradeCalculator() {
               {efzTab === 'previous' && (
                 <>
                   <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-purple-50 border-purple-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Frühere Berufsschulzeugnisse scannen</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Zeugnis scannen</h3>
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                       <div className="text-sm text-gray-600">Bilddatei (JPG, PNG) oder PDF</div>
                       <input
@@ -2291,7 +2355,7 @@ export default function BMGradeCalculator() {
                   {/* Manual entry for old module averages */}
                   <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-green-50 border-green-200">
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Alte Moduldurchschnitte hinzufügen</h3>
-                    <div className="grid md:grid-cols-3 gap-3">
+                    <div className="grid md:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Modulcode</label>
                         <input
@@ -2301,6 +2365,18 @@ export default function BMGradeCalculator() {
                           onChange={(e) => setEfzManualModuleId(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded text-sm"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Semester</label>
+                        <select
+                          value={efzManualModuleSemester}
+                          onChange={(e) => setEfzManualModuleSemester(parseInt(e.target.value, 10))}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                        >
+                          {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
+                            <option key={sem} value={sem}>S{sem}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">Durchschnitt</label>

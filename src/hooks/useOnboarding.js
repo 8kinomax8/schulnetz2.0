@@ -63,7 +63,8 @@ export function useOnboarding(user) {
       const { data, error } = await setUserPreferences({
         currentSemester,
         bmType,
-        maturanoteGoal: 5.0
+        maturanoteGoal: 5.0,
+        tourCompleted: localStorage.getItem('schulnetz_tour_completed') === 'true'
       });
 
       if (error) {
