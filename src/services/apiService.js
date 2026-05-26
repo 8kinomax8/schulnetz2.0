@@ -46,26 +46,107 @@ const updateRateLimitState = (headers) => {
 };
 
 /**
- * Convertit un fichier en base64
+ * Compresse une image en redimensionnant et en réduisant la qualité
+ * @param {File} file - Fichier image à compresser
+ * @returns {Promise<string>} Base64 data compressée
+ */
+const compressImage = async (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    const MAX_DIMENSION = 8000;
+    const QUALITY = 0.75; // 75% quality for JPG compression
+
+    reader.onload = (e) => {
+      try {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Scale down if image is larger than MAX_DIMENSION
+          if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            const scale = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+            width = Math.floor(width * scale);
+            height = Math.floor(height * scale);
+            console.log(`📸 Resizing image from ${img.width}x${img.height} to ${width}x${height}`);
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d', { alpha: false });
+          
+          if (!ctx) {
+            throw new Error('Impossible d\'accéder au contexte canvas pour la compression.');
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to base64 with compression
+          const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+          const base64Part = dataUrl.split(',')[1];
+          
+          if (!base64Part) {
+            throw new Error('Impossible d\'extraire les données base64 de l\'image compressée.');
+          }
+
+          console.log(`✅ Image compressed: original ${file.size} bytes, compressed ~${Math.round(base64Part.length * 0.75)} bytes`);
+          resolve(base64Part);
+        };
+
+        img.onerror = () => {
+          reject(new Error('Impossible de charger l\'image pour la compression. L\'image peut être corrompue.'));
+        };
+
+        img.src = e.target.result;
+      } catch (e) {
+        reject(new Error(`Erreur lors de la compression de l'image: ${e.message}`));
+      }
+    };
+
+    reader.onerror = () => {
+      reject(new Error('Impossible de lire le fichier image.'));
+    };
+
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Convertit un fichier en base64 avec optimisations pour images
  * @param {File} file - Fichier à convertir
  * @returns {Promise<string>} Base64 data
  */
 const fileToBase64 = (file) => {
-  return new Promise((resolve, reject) => {
-    // Check file size upfront (5MB limit for FileReader to be safe)
-    const MAX_FILEREADER_SIZE = 5 * 1024 * 1024; // 5MB
+  return new Promise(async (resolve, reject) => {
+    // Check file size upfront
+    const MAX_FILEREADER_SIZE = 3 * 1024 * 1024; // 3MB limit
     if (file.size > MAX_FILEREADER_SIZE) {
       reject(new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILEREADER_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`));
       return;
     }
 
+    // For images, use canvas compression to reduce size
+    if (file.type && file.type.startsWith('image/')) {
+      try {
+        console.log(`🖼️ Compressing image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+        const compressed = await compressImage(file);
+        resolve(compressed);
+        return;
+      } catch (e) {
+        console.warn('Image compression failed, falling back to direct conversion:', e.message);
+        // Fall through to direct conversion if compression fails
+      }
+    }
+
+    // Direct FileReader conversion (for PDFs, or if compression failed)
     const reader = new FileReader();
     
-    // Add timeout protection (30 seconds)
+    // Add timeout protection (20 seconds for PDFs)
     const timeoutId = setTimeout(() => {
       reader.abort();
-      reject(new Error('Délai d\'attente dépassé lors de la lecture du fichier. Le fichier peut être trop volumineux ou corrompu.'));
-    }, 30000);
+      reject(new Error('Délai d\'attente dépassé lors de la lecture du fichier. Le fichier peut être trop volumineux, corrompu ou non supporté par votre navigateur.'));
+    }, 20000);
 
     // Add error handler
     reader.onerror = () => {
@@ -76,14 +157,15 @@ const fileToBase64 = (file) => {
       console.error(`FileReader error: ${errorName}`, reader.error);
       
       if (errorName === 'NotReadableError') {
-        errorMsg = 'Le fichier ne peut pas être lu. Il peut être corrompu, protégé ou mal formaté. Essayez de:\n' +
-                   '• Télécharger une nouvelle copie du fichier\n' +
-                   '• Convertir le PDF en image (JPG/PNG)\n' +
-                   '• Compresser le fichier PDF';
+        errorMsg = 'Le fichier ne peut pas être lu par votre navigateur.\n\nSolutions:\n' +
+                   '✓ Convertissez le PDF en image JPG/PNG (conseillé)\n' +
+                   '✓ Compressez le PDF avec un outil en ligne\n' +
+                   '✓ Essayez un autre navigateur (Chrome, Firefox, Safari)\n' +
+                   '✓ Vérifiez que le fichier n\'est pas protégé ou corrompu';
       } else if (errorName === 'SecurityError') {
-        errorMsg = 'Erreur de sécurité lors de la lecture du fichier. Cela peut arriver avec certains fichiers PDF protégés.';
+        errorMsg = 'Erreur de sécurité. Le fichier peut être protégé ou provenir d\'une source non sûre. Essayez de convertir le PDF en image.';
       } else if (errorName === 'EncodingError') {
-        errorMsg = 'Erreur d\'encodage du fichier. Le fichier peut être mal formaté.';
+        errorMsg = 'Erreur d\'encodage du fichier. Le fichier peut être mal formaté. Réessayez ou convertissez en image.';
       }
       reject(new Error(errorMsg));
     };
@@ -220,10 +302,10 @@ export const analyzeBulletin = async (file, scanType = 'BULLETIN') => {
       throw new Error(`Format de fichier non supporté: ${mimeType}. Acceptés: images (JPG, PNG, WebP) ou PDF.`);
     }
 
-    // Validate file size before attempting conversion
-    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB - safe limit for FileReader
+    // Validate file size before attempting conversion (3MB limit)
+    const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB - safe limit
     if (file.size > MAX_FILE_SIZE) {
-      throw new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`);
+      throw new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)} MB. Pour les images, elles seront automatiquement compressées et redimensionnées.`);
     }
 
     const base64Data = await fileToBase64(file);
