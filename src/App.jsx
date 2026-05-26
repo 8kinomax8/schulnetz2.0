@@ -981,15 +981,32 @@ export default function BMGradeCalculator() {
         ? result.semesters
         : (result?.grades ? [{ semester: result.semester || currentSemester, grades: result.grades }] : []);
 
-      let added = 0;
+      let addedModules = 0;
+      let addedUek = 0;
       for (const semesterData of semesters) {
         const semester = semesterData?.semester || currentSemester;
         const grades = semesterData?.grades || {};
         for (const [moduleRaw, grade] of Object.entries(grades)) {
+          const normalizedGrade = clampGrade(grade);
+          if (normalizedGrade === null) continue;
+
+          // Check if this is a üK entry
+          if (/\buek\b|\bük\b/i.test(moduleRaw)) {
+            addUekGrade(
+              'ueK',
+              normalizedGrade,
+              1,
+              '',
+              `Zeugnis S${semester}`
+            );
+            addedUek += 1;
+            continue;
+          }
+
+          // Otherwise treat as a module
           const moduleCode = normalizeModuleCode(moduleRaw);
           const moduleName = extractModuleName(moduleRaw);
-          const normalizedGrade = clampGrade(grade);
-          if (!moduleCode || normalizedGrade === null) continue;
+          if (!moduleCode) continue;
 
           const wasAdded = await addOrMergeModuleGrade(
             moduleCode,
@@ -1001,13 +1018,19 @@ export default function BMGradeCalculator() {
             'import',
             semester
           );
-          if (wasAdded) added += 1;
+          if (wasAdded) addedModules += 1;
         }
       }
 
-      setEfzAnalysisResult({
-        message: `${added} Moduldurchschnitt/-durchschnitte aus alten Zeugnissen hinzugefügt.`
-      });
+      const message = addedModules > 0 && addedUek > 0
+        ? `${addedModules} Modul(e) und ${addedUek} üK-Note(n) aus alten Zeugnissen hinzugefügt.`
+        : addedModules > 0
+        ? `${addedModules} Modul(e) aus alten Zeugnissen hinzugefügt.`
+        : addedUek > 0
+        ? `${addedUek} üK-Note(n) aus alten Zeugnissen hinzugefügt.`
+        : 'Keine neuen Daten hinzugefügt.';
+
+      setEfzAnalysisResult({ message });
     } catch (error) {
       console.error('EFZ bulletin analysis error:', error);
       setEfzAnalysisResult({ error: 'Fehler bei der Analyse des Berufsschul-Zeugnisses.' });

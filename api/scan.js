@@ -98,10 +98,14 @@ OUTPUT FORMAT (ONLY valid JSON, no text before or after):
   ]
 }
 
-RULES:
-- Extract modules (e.g., M117, M122, M152, M286, etc.) and other subjects (e.g., Allgemeinbildung, ABU, ueK, Englisch, Sport).
-- Module codes must be normalized as "M" followed by 3 digits (e.g., M117, M152, M254).
-- Grades must be numeric values (e.g., 5.0, 4.5, 6.0).
+IMPORTANT RULES:
+- For modules: use "M" + 3 digits (e.g., M117, M152, M254, M286)
+  - If you see "m152", "Module 152", "Modul 152", "M 152", normalize to "M152"
+- For üK/ÜK (Übungskurse): use the key "ueK" (lowercase "ue", capital "K")
+  - If you see "üK", "Ük", "ueK", "üKurs", "Übungskurs", normalize to "ueK"
+  - üK is a single entry per semester with a grade (not broken down by course name)
+- For other subjects (e.g., Allgemeinbildung, ABU, Englisch, Sport): use the exact name
+- Grades must be numeric values (e.g., 5.0, 4.5, 6.0)
 - If no data found: {"error": "no grades found"}
 `;
 
