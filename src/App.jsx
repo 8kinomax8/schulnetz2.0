@@ -161,6 +161,7 @@ export default function BMGradeCalculator() {
   const [modulePlans, setModulePlans] = useState({});
   const [moduleGoals, setModuleGoals] = useState({});
   const [uekGrades, setUekGrades] = useState([]);
+  const [previousUekGrades, setPreviousUekGrades] = useState([]);
   const [uekPlans, setUekPlans] = useState([]);
   const [ipaGrade, setIpaGrade] = useState(null);
   const [finalGoal, setFinalGoal] = useState(5.0);
@@ -669,7 +670,8 @@ export default function BMGradeCalculator() {
     validSubjects,
     currentSemester,
     addControlToDatabase,
-    saveBulletinToDatabase
+    saveBulletinToDatabase,
+    setPreviousUekGrades
   );
 
   // Calculations
@@ -2336,36 +2338,12 @@ export default function BMGradeCalculator() {
 
               {efzTab === 'previous' && (
                 <>
-                  <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-purple-50 border-purple-200">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Zeugnis scannen</h3>
-                    <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                      <div className="text-sm text-gray-600">Bilddatei (JPG, PNG) oder PDF</div>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept="image/*,application/pdf"
-                        onChange={handleEfzBulletinUpload}
-                        disabled={efzIsAnalyzing}
-                      />
-                    </label>
-
-                    {efzIsAnalyzing && (
-                      <div className="flex items-center justify-center p-4 bg-purple-50 rounded-lg">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mr-3"></div>
-                        <span className="text-purple-600">Analyse läuft ...</span>
-                      </div>
-                    )}
-                    {efzAnalysisResult?.error && (
-                      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-                        {efzAnalysisResult.error}
-                      </div>
-                    )}
-                    {efzAnalysisResult?.message && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
-                        {efzAnalysisResult.message}
-                      </div>
-                    )}
-                  </div>
+                  <BulletinAnalysis
+                    isAnalyzing={efzIsAnalyzing}
+                    analysisResult={efzAnalysisResult}
+                    onFileUpload={handleEfzBulletinUpload}
+                    activeTab="previous"
+                  />
 
                   {/* Manual entry for old module averages */}
                   <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-green-50 border-green-200">
@@ -2421,7 +2399,17 @@ export default function BMGradeCalculator() {
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Alte üK-Note hinzufügen</h3>
                     <div className="grid md:grid-cols-4 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Durchschnitt</label>
+                        <label className="block text-xs text-gray-600 mb-1">Thema</label>
+                        <input
+                          type="text"
+                          placeholder="z.B. Linux, Datenbanken"
+                          value={efzManualUekTheme}
+                          onChange={(e) => setEfzManualUekTheme(e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Note</label>
                         <input
                           type="number"
                           step="0.5"
@@ -2430,16 +2418,6 @@ export default function BMGradeCalculator() {
                           placeholder="Note"
                           value={efzManualUekAverage}
                           onChange={(e) => setEfzManualUekAverage(e.target.value)}
-                          className="w-full p-2 border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Thema</label>
-                        <input
-                          type="text"
-                          placeholder="z.B. Linux, Datenbanken"
-                          value={efzManualUekTheme}
-                          onChange={(e) => setEfzManualUekTheme(e.target.value)}
                           className="w-full p-2 border border-gray-300 rounded text-sm"
                         />
                       </div>
@@ -2497,6 +2475,76 @@ export default function BMGradeCalculator() {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {previousUekGrades && previousUekGrades.length > 0 && (
+                    <div className="mb-6 w-full bg-white rounded-xl border border-gray-200 p-4">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-4">Alte Zeugnisse (vom Bulletin)</h2>
+                      <div className="space-y-2">
+                        {previousUekGrades.map((uek) => (
+                          <div key={uek.id} className="flex justify-between items-center p-3 bg-amber-50 rounded-lg border border-amber-200">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-800">{uek.code}: {uek.name}</p>
+                              {uek.gradesPerSemester && (
+                                <p className="text-xs text-gray-500">
+                                  {Object.entries(uek.gradesPerSemester).map(([sem, grade]) => `S${sem}: ${grade}`).join(' | ')}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg font-bold text-amber-900">{uek.grade?.toFixed(1) || '-'}</span>
+                              <button
+                                onClick={() => {
+                                  setPreviousUekGrades(prev => prev?.filter(g => g.id !== uek.id) || []);
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Diesen Eintrag löschen"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {uekGrades && uekGrades.length > 0 && (
+                    <div className="mb-6 w-full bg-white rounded-xl border border-gray-200 p-4">
+                      <h2 className="text-2xl font-bold text-gray-800 mb-4">Alte Zeugnisse (manuell hinzugefügt)</h2>
+                      <div className="space-y-2">
+                        {uekGrades.map((uek) => (
+                          <div key={uek.id} className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-800">{uek.name}</p>
+                              {uek.date && <p className="text-xs text-gray-500">{formatSwissDate(uek.date)}</p>}
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg font-bold text-blue-900">{uek.grade.toFixed(1)}</span>
+                              <button
+                                onClick={async () => {
+                                  if (confirm(`Diese üK-Note (${uek.name} - ${uek.grade}) löschen?`)) {
+                                    const newUekGrades = uekGrades.filter(g => g.id !== uek.id);
+                                    setUekGrades(newUekGrades);
+                                    if (user && database.userId && database.removeEfzUekGrade) {
+                                      try {
+                                        await database.removeEfzUekGrade(uek.id);
+                                      } catch (err) {
+                                        console.warn('Error removing üK grade from DB:', err.message || err);
+                                      }
+                                    }
+                                  }
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                                title="Diese üK-Note löschen"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}

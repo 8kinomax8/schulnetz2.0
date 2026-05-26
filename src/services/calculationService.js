@@ -338,14 +338,14 @@ export const simulateUekAverage = (currentGrades, plannedGrades) => {
 };
 
 /**
- * Calcule la partie ecole (80% modules, 20% ueK), arrondie au dixieme
+ * Calcule la partie ecole (80% modules, 20% ueK), arrondie au demi-point
  * @param {number|null} modulesAverage - Moyenne modules arrondie a 0.5
  * @param {number|null} uekAverage - Moyenne ueK arrondie a 0.5
  * @returns {number|null} Partie ecole arrondie ou null (null if either is missing)
  */
 export const calculateSchoolPart = (modulesAverage, uekAverage) => {
   if (!Number.isFinite(modulesAverage) || !Number.isFinite(uekAverage)) return null;
-  return roundToTenth((modulesAverage * 0.8) + (uekAverage * 0.2));
+  return roundToHalfOrWhole((modulesAverage * 0.8) + (uekAverage * 0.2));
 };
 
 /**

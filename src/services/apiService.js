@@ -47,6 +47,7 @@ const updateRateLimitState = (headers) => {
 
 /**
  * Compresse une image en redimensionnant et en réduisant la qualité
+ * Gère aussi les Live Photos iOS (HEIC/HEIF) en les convertissant en JPEG
  * @param {File} file - Fichier image à compresser
  * @returns {Promise<string>} Base64 data compressée
  */
@@ -55,47 +56,106 @@ const compressImage = async (file) => {
     const reader = new FileReader();
     const MAX_DIMENSION = 8000;
     const QUALITY = 0.75; // 75% quality for JPG compression
+    
+    // Log file info for debugging
+    const isHeic = file.type === 'image/heic' || file.type === 'image/heif' || 
+                   file.name.toLowerCase().endsWith('.heic') || 
+                   file.name.toLowerCase().endsWith('.heif');
+    if (isHeic) {
+      console.log(`📱 Détecté: Live Photo iOS (HEIC/HEIF) - Conversion en JPEG automatique`);
+    }
 
     reader.onload = (e) => {
       try {
         const img = new Image();
+        
         img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
+          try {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
 
-          // Scale down if image is larger than MAX_DIMENSION
-          if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-            const scale = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
-            width = Math.floor(width * scale);
-            height = Math.floor(height * scale);
-            console.log(`📸 Resizing image from ${img.width}x${img.height} to ${width}x${height}`);
+            // Scale down if image is larger than MAX_DIMENSION
+            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+              const scale = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+              width = Math.floor(width * scale);
+              height = Math.floor(height * scale);
+              console.log(`📸 Redimensionnement: ${img.width}x${img.height} → ${width}x${height}`);
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d', { alpha: false });
+            
+            if (!ctx) {
+              throw new Error('Impossible d\'accéder au contexte canvas pour la compression.');
+            }
+
+            // Draw image with white background to handle transparency
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Convert to base64 with compression
+            const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+            const base64Part = dataUrl.split(',')[1];
+            
+            if (!base64Part) {
+              throw new Error('Impossible d\'extraire les données base64 de l\'image compressée.');
+            }
+
+            const originalSize = file.size;
+            const compressedSize = Math.round(base64Part.length * 0.75);
+            const reduction = Math.round((1 - compressedSize / originalSize) * 100);
+            console.log(`✅ Image compressée: ${(originalSize / 1024).toFixed(1)} KB → ${(compressedSize / 1024).toFixed(1)} KB (-${reduction}%)`);
+            resolve(base64Part);
+          } catch (canvasError) {
+            reject(new Error(`Erreur lors de la conversion canvas: ${canvasError.message}`));
           }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d', { alpha: false });
-          
-          if (!ctx) {
-            throw new Error('Impossible d\'accéder au contexte canvas pour la compression.');
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // Convert to base64 with compression
-          const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
-          const base64Part = dataUrl.split(',')[1];
-          
-          if (!base64Part) {
-            throw new Error('Impossible d\'extraire les données base64 de l\'image compressée.');
-          }
-
-          console.log(`✅ Image compressed: original ${file.size} bytes, compressed ~${Math.round(base64Part.length * 0.75)} bytes`);
-          resolve(base64Part);
         };
 
         img.onerror = () => {
-          reject(new Error('Impossible de charger l\'image pour la compression. L\'image peut être corrompue.'));
+          // Try alternative approach for Live Photos
+          if (isHeic) {
+            console.warn('⚠️ Impossível carregar Live Photo como imagem, tentando abordagem alternativa...');
+            // For HEIC files that fail to load, still try to use the original data
+            // This is a fallback that may work in some cases
+            const blob = new Blob([e.target.result], { type: 'image/jpeg' });
+            const alternativeUrl = URL.createObjectURL(blob);
+            const retryImg = new Image();
+            
+            retryImg.onload = () => {
+              // Try again with the converted URL
+              const canvas = document.createElement('canvas');
+              canvas.width = retryImg.width;
+              canvas.height = retryImg.height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(retryImg, 0, 0);
+              const dataUrl = canvas.toDataURL('image/jpeg', QUALITY);
+              const base64Part = dataUrl.split(',')[1];
+              URL.revokeObjectURL(alternativeUrl);
+              resolve(base64Part);
+            };
+            
+            retryImg.onerror = () => {
+              URL.revokeObjectURL(alternativeUrl);
+              reject(new Error('Live Photo iOS: Impossible de convertir automatiquement. Essayez de sauvegarder la photo en JPEG sur votre iPhone (Photos > Éditer > Format > Compatibilité).'));
+            };
+            
+            retryImg.src = alternativeUrl;
+          } else {
+            reject(new Error('Impossible de charger l\'image pour la compression. L\'image peut être corrompue ou dans un format non supporté.'));
+          }
+        };
+
+        // Set a timeout for image loading
+        const loadTimeout = setTimeout(() => {
+          img.onerror?.();
+        }, 5000);
+
+        img.onload = function() {
+          clearTimeout(loadTimeout);
+          img.onload.call(this);
         };
 
         img.src = e.target.result;
@@ -105,7 +165,29 @@ const compressImage = async (file) => {
     };
 
     reader.onerror = () => {
-      reject(new Error('Impossible de lire le fichier image.'));
+      if (isHeic) {
+        console.error('❌ FileReader a échoué sur Live Photo HEIC. Type MIME:', file.type);
+        reject(new Error('Live Photo iOS: Le fichier HEIC ne peut pas être lu directement. Essayez de:\n' +
+                        '✓ Sauvegarder la photo en JPEG sur votre iPhone\n' +
+                        '✓ Utiliser une capture d\'écran ou une photo régulière'));
+      } else {
+        reject(new Error('Impossible de lire le fichier image.'));
+      }
+    };
+
+    // Add a general timeout for FileReader
+    const readerTimeout = setTimeout(() => {
+      reader.abort();
+      if (isHeic) {
+        reject(new Error('Délai d\'attente dépassé pour la lecture du Live Photo. Convertissez la photo en JPEG sur votre iPhone.'));
+      } else {
+        reject(new Error('Délai d\'attente dépassé lors de la lecture du fichier image.'));
+      }
+    }, 10000);
+
+    reader.onabort = () => {
+      clearTimeout(readerTimeout);
+      reject(new Error('La lecture du fichier image a été annulée.'));
     };
 
     reader.readAsDataURL(file);
@@ -157,13 +239,29 @@ const fileToBase64 = (file) => {
       console.error(`FileReader error: ${errorName}`, reader.error);
       
       if (errorName === 'NotReadableError') {
-        errorMsg = 'Le fichier ne peut pas être lu par votre navigateur.\n\nSolutions:\n' +
-                   '✓ Convertissez le PDF en image JPG/PNG (conseillé)\n' +
-                   '✓ Compressez le PDF avec un outil en ligne\n' +
-                   '✓ Essayez un autre navigateur (Chrome, Firefox, Safari)\n' +
-                   '✓ Vérifiez que le fichier n\'est pas protégé ou corrompu';
+        // Check if it's likely a Live Photo
+        const isLikelyLivePhoto = file.type === 'image/heic' || 
+                                  file.type === 'image/heif' || 
+                                  file.name?.toLowerCase().endsWith('.heic') || 
+                                  file.name?.toLowerCase().endsWith('.heif');
+        
+        if (isLikelyLivePhoto) {
+          errorMsg = '📱 Live Photo iOS détecté\n\nLa conversion automatique a échoué.\n\n' +
+                     'Solutions:\n' +
+                     '✓ Sur iPhone: Photos > Éditer > Formats > Compatibilité\n' +
+                     '✓ Puis sélectionnez à nouveau la photo sauvegardée en JPEG\n' +
+                     '✓ Ou: Prenez une capture d\'écran du bulletin au lieu d\'une photo';
+        } else {
+          errorMsg = 'Le fichier ne peut pas être lu par votre navigateur.\n\n' +
+                     'Solutions:\n' +
+                     '✓ Essayez un autre navigateur (Chrome, Safari, Firefox)\n' +
+                     '✓ Vérifiez que le fichier n\'est pas protégé\n' +
+                     '✓ Convertissez le PDF en image JPG/PNG\n' +
+                     '✓ Redémarrez votre appareil et réessayez';
+        }
       } else if (errorName === 'SecurityError') {
-        errorMsg = 'Erreur de sécurité. Le fichier peut être protégé ou provenir d\'une source non sûre. Essayez de convertir le PDF en image.';
+        errorMsg = 'Erreur de sécurité. Le fichier peut être protégé ou provenir d\'une source non sûre. ' +
+                   'Essayez de convertir le fichier ou utilisez un autre navigateur.';
       } else if (errorName === 'EncodingError') {
         errorMsg = 'Erreur d\'encodage du fichier. Le fichier peut être mal formaté. Réessayez ou convertissez en image.';
       }
@@ -457,27 +555,53 @@ export const processBulletinScan = (result, currentSemesterGrades, validSubjects
     return Number.isFinite(parsed) ? parsed : null;
   };
 
+  // Track which codes are üK (have low average grades or special markers)
+  const isUekCode = (code) => {
+    const normalized = String(code).toLowerCase();
+    return normalized === 'uek' || normalized.startsWith('m4') || normalized.startsWith('m5') || normalized.startsWith('m6');
+  };
+
   const updatedSemesterGrades = { ...currentSemesterGrades };
   const semestersList = []; // List of {semester, mappedGrades}
+  const previousUekGrades = []; // Extract üK from bulletin with ID and grades per semester
 
   // Support both old format (single semester) and new format (multiple semesters)
   const semesters = result.semesters || (result.grades ? [{ semester: result.semester ?? currentSemester, grades: result.grades }] : []);
 
+  // First pass: collect all üK codes from all semesters
+  const uekCodesFromBulletin = new Set();
+  semesters.forEach(semesterData => {
+    const grades = semesterData.grades || {};
+    Object.keys(grades).forEach(k => {
+      if (isUekCode(k)) {
+        uekCodesFromBulletin.add(k);
+      }
+    });
+  });
+
+  // Second pass: process grades
   semesters.forEach(semesterData => {
     const semester = semesterData.semester ?? currentSemester;
     const grades = semesterData.grades || {};
     const mappedGrades = {};
+    const uekGradesForSemester = {};
 
     Object.entries(grades).forEach(([k, v]) => {
-      const canon = normalizeSubjectName(k, validSubjects);
-      if (!canon) return;
       const normalizedGrade = normalizeNumber(v);
-      if (normalizedGrade !== null) {
+      if (normalizedGrade === null) return;
+
+      // Check if this is a üK entry
+      if (isUekCode(k)) {
+        uekGradesForSemester[k] = normalizedGrade;
+      } else {
+        // Regular module - use subject mapping
+        const canon = normalizeSubjectName(k, validSubjects);
+        if (!canon) return;
         mappedGrades[canon] = normalizedGrade;
       }
     });
 
-    // Update semester grades
+    // Update semester grades for regular modules
     Object.entries(mappedGrades).forEach(([subject, grade]) => {
       if (!updatedSemesterGrades[subject]) {
         updatedSemesterGrades[subject] = {};
@@ -486,10 +610,34 @@ export const processBulletinScan = (result, currentSemesterGrades, validSubjects
     });
 
     // Add to list if grades found
-    if (Object.keys(mappedGrades).length > 0) {
-      semestersList.push({ semester, mappedGrades });
+    if (Object.keys(mappedGrades).length > 0 || Object.keys(uekGradesForSemester).length > 0) {
+      semestersList.push({ semester, mappedGrades, uekGradesForSemester });
     }
   });
 
-  return { updatedSemesterGrades, semestersList };
+  // Build previousUekGrades from collected üK data
+  uekCodesFromBulletin.forEach(uekCode => {
+    const gradesPerSemester = {};
+    semesters.forEach(semesterData => {
+      const semester = semesterData.semester ?? currentSemester;
+      const grades = semesterData.grades || {};
+      if (grades[uekCode] !== undefined && grades[uekCode] !== null) {
+        const normalizedGrade = normalizeNumber(grades[uekCode]);
+        if (normalizedGrade !== null) {
+          gradesPerSemester[semester] = normalizedGrade;
+        }
+      }
+    });
+
+    if (Object.keys(gradesPerSemester).length > 0) {
+      previousUekGrades.push({
+        id: Date.now() + Math.random(), // Unique ID for this entry
+        code: uekCode,
+        name: `Zeugnis ${uekCode}`,
+        grades: gradesPerSemester // { semester: grade, ... }
+      });
+    }
+  });
+
+  return { updatedSemesterGrades, semestersList, previousUekGrades };
 };

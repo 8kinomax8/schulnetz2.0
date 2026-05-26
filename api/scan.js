@@ -66,47 +66,131 @@ RULES:
 - If no data: {"error": "no assessments found"}
 `;
 
-const EFZ_SAL_PROMPT = `You are analyzing a SAL screenshot from Swiss apprenticeship training (Berufsschule). Extract EVERY graded entry.
+const EFZ_SAL_PROMPT = `You are analyzing a SAL screenshot from Swiss apprenticeship training (Berufsschule continuous assessment system). Extract EVERY graded entry visible.
+
+The SAL typically shows a LIST or TABLE of:
+- Module code (M###) or üK entry
+- Assessment name/title
+- Date of assessment
+- Numeric grade
+- Sometimes weight/importance
 
 OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 {
   "controls": [
-    {"subject": "M152", "moduleName": "Multimedia-Inhalte in Webauftritt integrieren", "date": "2025-01-15", "name": "Kontrolle", "grade": 5.5, "weight": 1},
-    {"subject": "ueK", "date": "2025-01-10", "name": "üK-Note", "grade": 4.5, "weight": 1}
+    {"subject": "M152", "moduleName": "Multimedia-Inhalte in Webauftritt integrieren", "date": "2025-01-15", "name": "Kontrolle 1", "grade": 5.5, "weight": 1},
+    {"subject": "M117", "moduleName": "Webseiten mit XHTML strukturieren", "date": "2025-01-10", "name": "Test", "grade": 4.5, "weight": 1},
+    {"subject": "ueK", "date": "2025-01-20", "name": "üK-Note", "grade": 5.0, "weight": 1}
   ]
 }
 
-IMPORTANT RULES:
-- For modules: subject MUST be "M" + 3 digits (e.g., M152, M123, M200)
-  - If you see m152 or "Module 152" or "Modul 152", normalize to "M152"
-  - moduleName: extract the visible module title/name next to the module code when present. Do not put the test/control name here.
-- For üK entries: subject MUST be exactly "ueK" (or "uek" in input -> "ueK" in output)
-- date: YYYY-MM-DD format preferred
-- grade: numeric (5.5, 4.0, 6.0, etc) - REQUIRED
-- weight: numeric, default 1 if not visible
-- EXTRACT EVERY row you see
-- If no data: {"error": "no controls found"}
+CRITICAL RULES:
+1. SUBJECT EXTRACTION:
+   - For modules: ONLY "M" + 3 digits (M152, M117, M254, etc.)
+   - Normalize variations: "m152" → "M152", "Module 152" → "M152", "M 152" → "M152"
+   - For üK: ALWAYS use "ueK" (lowercase ue, capital K)
+   - Normalize: "üK", "Ük", "ÜK", "üKurs", "Übungskurs" → "ueK"
+
+2. MODULE NAME (moduleName field):
+   - Only for M### entries (modules)
+   - Extract the FULL descriptive name if visible (e.g., "Webseiten mit XHTML strukturieren")
+   - This is the skill/topic name, NOT the assessment name
+   - Leave empty/omit if not visible
+
+3. ASSESSMENT NAME (name field):
+   - The specific assessment/test name (e.g., "Kontrolle 1", "Test", "Quiz", "Projekt")
+   - For üK: just use "üK-Note" or similar
+
+4. DATE:
+   - Extract as YYYY-MM-DD if possible
+   - Alternative: DD.MM.YYYY
+   - If date unclear, use best guess or omit
+
+5. GRADE:
+   - REQUIRED - must be numeric (4.5, 5.0, 6.0, etc.)
+   - Valid range: 1.0 to 6.0 for Swiss system
+   - If value is not numeric or unclear, SKIP this row entirely
+
+6. WEIGHT:
+   - Optional, default 1
+   - Only if explicitly shown in SAL
+
+7. EXTRACTION COMPLETENESS:
+   - Extract EVERY visible row/entry
+   - Do NOT filter or skip rows
+   - Do NOT invent data not visible in the screenshot
+   - Do NOT hallucinate module names if not shown
+
+If no data found: {"error": "no assessments found"}
+If unclear format: {"error": "could not parse SAL format"}
 `;
 
-const EFZ_BULLETIN_PROMPT = `You are analyzing a Swiss school report (Berufsschule Zeugnis) from an IT/computer science apprenticeship training. Extract all semester grades.
+const EFZ_BULLETIN_PROMPT = `You are analyzing a Swiss apprenticeship school report (Berufsschule Zeugnis) showing module/skill grades from an IT/computer science program.
+
+The bulletin is displayed as a TABLE:
+- Each ROW = one module or üK (Übungskurs)
+- Each COLUMN = one semester (S1, S2, S3, S4, etc.)
+- Each CELL = the numeric grade for that module/üK in that semester
+
+IMPORTANT: There can be MULTIPLE üK entries per semster (not just one). Each üK has its own row/line.
+
+EXAMPLE of what you'll see:
+\`\`\`
+                        S1    S2    S3    S4
+M117 (Websiten)       5.0   4.5   5.5   4.0
+M122 (Datenbaken)     4.5   4.0   5.0   3.5
+M152 (Multimedia)     5.5   5.0   4.5   4.0
+...
+M401 (Linux üK)       5.5   5.0   5.5   5.0
+M402 (Datenbank üK)   4.5   4.5   5.0   4.5
+\`\`\`
 
 OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 {
   "semesters": [
-    {"semester": 1, "grades": {"M117": 5.0, "M122": 4.5, "Allgemeinbildung": 5.0}},
-    {"semester": 2, "grades": {"M152": 5.5, "ueK": 5.0}}
+    {"semester": 1, "grades": {"M117": 5.0, "M122": 4.5, "M152": 5.5, "M401": 5.5, "M402": 4.5}},
+    {"semester": 2, "grades": {"M117": 4.5, "M122": 4.0, "M152": 5.0, "M401": 5.0, "M402": 4.5}},
+    {"semester": 3, "grades": {"M117": 5.5, "M122": 5.0, "M152": 4.5, "M401": 5.5, "M402": 5.0}},
+    {"semester": 4, "grades": {"M117": 4.0, "M122": 3.5, "M152": 4.0, "M401": 5.0, "M402": 4.5}}
   ]
 }
 
-IMPORTANT RULES:
-- For modules: use "M" + 3 digits (e.g., M117, M152, M254, M286)
-  - If you see "m152", "Module 152", "Modul 152", "M 152", normalize to "M152"
-- For üK/ÜK (Übungskurse): use the key "ueK" (lowercase "ue", capital "K")
-  - If you see "üK", "Ük", "ueK", "üKurs", "Übungskurs", normalize to "ueK"
-  - üK is a single entry per semester with a grade (not broken down by course name)
-- For other subjects (e.g., Allgemeinbildung, ABU, Englisch, Sport): use the exact name
-- Grades must be numeric values (e.g., 5.0, 4.5, 6.0)
-- If no data found: {"error": "no grades found"}
+CRITICAL RULES - READ CAREFULLY:
+
+1. IDENTIFY TABLE STRUCTURE:
+   - Row headers = module codes (M###) or übungskurs codes (M###)
+   - Column headers = semester labels (S1, S2, Sem1, Semester 1, etc.) or dates
+   - Match each cell value to its row (module/übungskurs) and column (semester)
+
+2. FOR MODULES & ÜBUNGSKURSE: Use ONLY "M" + 3 digits
+   - If you see: "m152", "Module 152", "M 152", "M-152" → normalize to "M152"
+   - If you see: "üK", "Ük", "ÜK", "Übungskurs", "üKurs", "Linux üK", "Datenbank üK" → use IDENTIFYING CODE
+     * These are NOT the "ueK" generic marker - FIND THE SPECIFIC M### CODE for each üK row
+     * Examples: "M401", "M402", "M403" (Übungskurs codes are still M+3 digits)
+   - Module/Übungskurs code is ALWAYS in the row header, NOT in a cell
+   - Extract EVERY module and übungskurs you see
+
+3. SPECIAL CASE - üK WITHOUT VISIBLE CODE:
+   - If an üK line has no visible code, use "ueK" as fallback
+   - But PREFER using the actual code if you can see it (even faintly or partially)
+
+4. SEMESTER IDENTIFICATION:
+   - Column headers tell you which semester: S1, S2, S3, S4, Sem 1, Sem 2, etc.
+   - Map each column to its semester number (1, 2, 3, 4, etc.)
+
+5. GRADE EXTRACTION:
+   - Only extract VISIBLE numeric grades in cells (5.0, 4.5, 3.5, etc.)
+   - If a cell is empty or shows "-" or "—", SKIP that semester for that module
+   - Ignore any grades outside the main table
+
+6. HALLUCINATION PREVENTION:
+   - Do NOT invent modules, semesters, or grades not visible in the table
+   - Do NOT create entries for empty cells
+   - Do NOT misread column headers as grades
+   - If a value is unclear, skip it entirely
+
+If no clear table found: {"error": "no grades table found"}
+If table exists but is empty: {"error": "table found but no numeric grades visible"}
 `;
 
 // ============================================================================

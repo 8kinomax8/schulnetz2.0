@@ -12,6 +12,7 @@ import { formatSwissDate } from '../utils';
  * @param {number} currentSemester - Semestre actuel
  * @param {Function} onAddControl - Callback pour ajouter un contrôle à Supabase
  * @param {Function} onSaveBulletin - Callback pour sauvegarder une note de bulletin à Supabase
+ * @param {Function} setPreviousUekGrades - Setter pour les üK historiques du bulletin
  * @returns {Object} {isAnalyzing, analysisResult, analyzeFil, handleFileUpload}
  */
 export const useBulletinAnalysis = (
@@ -22,7 +23,8 @@ export const useBulletinAnalysis = (
   validSubjects,
   currentSemester,
   onAddControl = null,
-  onSaveBulletin = null
+  onSaveBulletin = null,
+  setPreviousUekGrades = null
 ) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -94,7 +96,7 @@ export const useBulletinAnalysis = (
       }
       // Bulletin processing
       else if (result.grades || result.semesters) {
-        const { updatedSemesterGrades, semestersList } = processBulletinScan(
+        const { updatedSemesterGrades, semestersList, previousUekGrades } = processBulletinScan(
           result,
           semesterGrades,
           validSubjects,
@@ -102,6 +104,29 @@ export const useBulletinAnalysis = (
         );
 
         setSemesterGrades(updatedSemesterGrades);
+
+        // Update previous üK if callback provided (separate from current uekGrades)
+        if (setPreviousUekGrades && previousUekGrades.length > 0) {
+          // Convert previousUekGrades structure to match uekGrades format
+          const formattedUekGrades = previousUekGrades.map(uek => {
+            // Calculate average from grades per semester
+            const gradesArray = Object.values(uek.grades);
+            const average = gradesArray.length > 0
+              ? gradesArray.reduce((a, b) => a + b, 0) / gradesArray.length
+              : null;
+            return {
+              id: uek.id,
+              code: uek.code,
+              grade: average,
+              weight: 1,
+              displayWeight: '1',
+              name: uek.name,
+              gradesPerSemester: uek.grades
+            };
+          });
+          // Replace previousUekGrades instead of appending
+          setPreviousUekGrades(formattedUekGrades);
+        }
 
         // Save to Supabase if callback provided
         const saveErrors = [];
@@ -121,9 +146,10 @@ export const useBulletinAnalysis = (
         }
 
         const totalGrades = semestersList.reduce((acc, s) => acc + Object.keys(s.mappedGrades).length, 0);
+        const uekCount = previousUekGrades.length;
         const message = saveErrors.length > 0
-          ? `${totalGrades} grade(s) added locally from ${semestersList.length} semester(s), but ${saveErrors.length} failed to save: ${saveErrors.join('; ')}`
-          : `${totalGrades} grade(s) added and saved from ${semestersList.length} semester(s)`;
+          ? `${totalGrades} grade(s) and ${uekCount} üK added from ${semestersList.length} semester(s), but ${saveErrors.length} failed to save: ${saveErrors.join('; ')}`
+          : `${totalGrades} grade(s) and ${uekCount} üK added and saved from ${semestersList.length} semester(s)`;
 
         setAnalysisResult({
           semesters: semestersList,
