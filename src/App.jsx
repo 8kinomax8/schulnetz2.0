@@ -218,6 +218,7 @@ export default function BMGradeCalculator() {
 
   // Ref to track if initial data load has been attempted
   const initialLoadAttempted = useRef(false);
+  const salPasteContainerRef = useRef(null);
 
   const handleJoyrideCallback = async (data) => {
     const { status } = data;
@@ -728,6 +729,38 @@ export default function BMGradeCalculator() {
     resetAnalysis();
   }, [bmTab, resetAnalysis]);
 
+  // Handle paste for SAL scanner
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      for (let item of items) {
+        // Only process images for SAL
+        if (item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            // Create a synthetic event to pass to handleEfzSalUpload
+            const event = {
+              target: {
+                files: [file]
+              }
+            };
+            handleEfzSalUpload(event);
+            break;
+          }
+        }
+      }
+    };
+
+    const container = salPasteContainerRef.current;
+    if (container) {
+      container.addEventListener('paste', handlePaste);
+      return () => container.removeEventListener('paste', handlePaste);
+    }
+  }, []);
+
   const handleSemesterSelect = async (semester) => {
     setCurrentSemester(semester);
     storage.set('currentSemester', semester);
@@ -927,7 +960,7 @@ export default function BMGradeCalculator() {
         const normalizedGrade = normalizeNumber(control.grade);
         if (normalizedGrade === null) continue;
 
-        if (/\buek\b|\bük\b/i.test(rawSubject)) {
+        if (/^ueK|^üK|\bueK\b|\büK\b/i.test(rawSubject)) {
           addUekGrade(
             'ueK',
             normalizedGrade,
@@ -992,13 +1025,18 @@ export default function BMGradeCalculator() {
           if (normalizedGrade === null) continue;
 
           // Check if this is a üK entry
-          if (/\buek\b|\bük\b/i.test(moduleRaw)) {
+          if (/^ueK|^üK|\bueK\b|\büK\b/i.test(moduleRaw)) {
+            // Extract descriptive name from format like "ueK_Linux" or "üK_Database"
+            const uekMatch = moduleRaw.match(/^ueK[_\s]+(.+)$|^üK[_\s]+(.+)$/i);
+            const uekName = uekMatch ? (uekMatch[1] || uekMatch[2]) : '';
+            const fullName = uekName ? `${uekName} (Zeugnis S${semester})` : `Zeugnis S${semester}`;
+            
             addUekGrade(
               'ueK',
               normalizedGrade,
               1,
               '',
-              `Zeugnis S${semester}`
+              fullName
             );
             addedUek += 1;
             continue;
@@ -2134,7 +2172,11 @@ export default function BMGradeCalculator() {
 
               {efzTab === 'scan-sal' && (
                 <>
-                  <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-blue-50 border-blue-200">
+                  <div
+                    ref={salPasteContainerRef}
+                    className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-blue-50 border-blue-200"
+                    tabIndex={0}
+                  >
                     <div className="flex items-center justify-start gap-3 mb-4">
                       <Camera className="w-5 h-5 text-purple-600" />
                       <h3 className="text-lg font-semibold text-gray-800">
@@ -2142,7 +2184,7 @@ export default function BMGradeCalculator() {
                       </h3>
                     </div>
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                      <div className="text-sm text-gray-600">SAL-Screenshot importieren (JPG, PNG)</div>
+                      <div className="text-sm text-gray-600">SAL-Screenshot importieren (JPG, PNG)<br /><span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span></div>
                       <input
                         type="file"
                         className="hidden"

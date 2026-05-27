@@ -86,7 +86,7 @@ export default function BulletinAnalysis({
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
                     Nur Bilddateien (JPG, PNG)<br />
-                    <span className="text-xs text-gray-500">oder Cmd+V / Ctrl+V zum Einfügen</span>
+                    <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
                   </p>
                 </>
               ) : (
@@ -94,7 +94,7 @@ export default function BulletinAnalysis({
                   <Camera className="w-10 h-10 text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 text-center">
                     Bilddatei (JPG, PNG) oder PDF<br />
-                    <span className="text-xs text-gray-500">oder Cmd+V / Ctrl+V zum Einfügen</span>
+                    <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
                   </p>
                 </>
               )}
