@@ -1,9 +1,7 @@
 # Schulnetz 2.0 – User Guide
 
-![Screenshot placeholder](file:///Users/kinome/.gemini/antigravity/brain/a6c9f3e1-55a8-47c0-85e4-2aab26670f71/screenshot_placeholder_1779872956408.png)
-
 ## Overview
-`Schulnetz 2.0` is a modern web application that helps Swiss CFC apprentices track, simulate and analyze their grades for both **Berufsmaturität (BM)** and **Berufsschule (EFZ)**. It offers secure authentication via Supabase, rich visualisations, AI‑powered document scanning, and flexible simulations to plan your academic path.
+`Schulnetz 2.0` is a modern web application that helps Swiss ICT apprentices track, simulate and analyze their grades for both **Berufsmaturität (BM)** and **Berufsschule (EFZ)**. It offers secure authentication via Supabase, rich visualisations, AI‑powered document scanning, and flexible simulations to plan your academic path.
 
 ## Features
 - **Grade tracking** for BM subjects and EFZ modules, including ÜK and IPA components.
@@ -15,8 +13,7 @@
 - **Automatic sync** indicator showing database synchronization status.
 
 ## Prerequisites
-- **Node.js** ≥ 20 (download from https://nodejs.org/)
-- **npm** ≥ 7 (comes with Node.js)
+- **Node.js** ≥ 20
 - A **Supabase** account (free tier is sufficient for development)
 - (Optional) **Claude API key** for document scanning – set on the server side only.
 
@@ -114,33 +111,6 @@ npm run build
 - The `/api/scan` endpoint enforces rate‑limiting and requires a valid Supabase JWT.
 - CORS headers are whitelisted to the domains listed in `vercel.json`.
 - Regularly audit policies via `supabase policy list`.
-
-## FAQ
-**Q:** *Can I use the app offline?*\
-**A:** The UI runs entirely in the browser, but persistence requires an internet connection to Supabase.
-
-**Q:** *What if my Claude API quota is exceeded?*\
-**A:** Scans will fail with a 429 error; the UI shows a friendly message and suggests retrying later.
-
-**Q:** *How are grades rounded?*\
-**A:** BM grades are rounded to the nearest 0.5 point; EFZ calculations use a 0.1‑point rounding for school‑part and final grades.
-
-## Contributing
-1. Fork the repository.
-2. Create a feature branch (`git checkout -b feat/awesome‑feature`).
-3. Install dependencies and run lint/tests.
-4. Commit with clear messages (`git commit -m "feat: add awesome feature"`).
-5. Open a Pull Request targeting `main`.
-
-All contributions must update the **Documentation** (`CLAUDE.md` and `README.md`) if they affect public behavior.
-
-## License
-This project is **proprietary** and intended for educational use only. See `LICENSE` for details.
-
-## Support
-- Open an issue on the GitHub repository.
-- Email the development team at `support@schulnetz.ch`.
-- Join the community Discord channel (link in the repo README).
 
 ---
 *Last updated: May 2026*
