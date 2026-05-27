@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check } from 'lucide-react';
+import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check, Camera } from 'lucide-react';
 import { Joyride, STATUS } from 'react-joyride';
 import { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
 import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel, OnboardingSetup } from './components';
