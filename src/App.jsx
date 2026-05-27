@@ -2135,7 +2135,7 @@ export default function BMGradeCalculator() {
               {efzTab === 'scan-sal' && (
                 <>
                   <div className="mb-6 w-full rounded-lg shadow-sm p-6 border-2 bg-blue-50 border-blue-200">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-start gap-3 mb-4">
                       <Camera className="w-5 h-5 text-purple-600" />
                       <h3 className="text-lg font-semibold text-gray-800">
                       SAL-Module scannen
