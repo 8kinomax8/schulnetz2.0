@@ -3063,93 +3063,132 @@ export default function BMGradeCalculator() {
                             {hasFinalInput && (
                               <div>
                                 <span className="text-gray-600">Benötigte Note:</span>
-                                <div className="font-bold text-lg text-blue-600">
+                                <div className={`font-bold text-lg ${
+                                  requiredExam && requiredExam > 6
+                                    ? 'text-red-600'
+                                    : 'text-blue-600'
+                                }`}>
                                   {requiredExam?.toFixed(1) || '-'}
                                 </div>
                               </div>
                             )}
                           </div>
 
-                          {hasFinalInput && (
-                            <div className="mb-3 p-3 bg-white/50 rounded border border-gray-200">
-                              <label className="block text-xs text-gray-700 mb-2">Ziel Maturnote für {subject}</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="4"
-                                max="6"
-                                value={subjectGoal}
-                                onChange={(e) => {
-                                  const value = parseFloat(e.target.value);
-                                  if (!isNaN(value) && value >= 4 && value <= 6) {
-                                    setExamGoals({ ...examGoals, [subject]: value });
-                                  }
-                                }}
-                                className="w-full p-2 border border-gray-300 rounded text-sm font-semibold text-center"
-                              />
+                          {hasFinalInput && requiredExam && requiredExam > 6 && (
+                            <div className="mb-3 p-2 bg-red-100 rounded text-xs text-red-700">
+                              ⚠️ Ziel nicht erreichbar (Note über 6.0 erforderlich)
                             </div>
                           )}
 
                           {hasFinalInput && (
-                            <div className="grid gap-3 sm:grid-cols-2 mb-3">
-                              <div>
-                                <label className="block text-xs text-gray-700 mb-1">{simulatedLabel}</label>
+                            <div className="mb-3 flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-700">Ziel:</span>
                                 <input
                                   type="number"
                                   step="0.5"
                                   min="1"
                                   max="6"
-                                  value={simulatedExamGrade || ''}
+                                  value={subjectGoal}
                                   onChange={(e) => {
                                     const value = parseFloat(e.target.value);
-                                    if (value >= 1 && value <= 6) {
-                                      setExamSimulator({ ...examSimulator, [subject]: value });
+                                    if (!isNaN(value) && value >= 1 && value <= 6) {
+                                      setExamGoals({ ...examGoals, [subject]: value });
                                     } else if (e.target.value === '') {
-                                      setExamSimulator({ ...examSimulator, [subject]: '' });
+                                      setExamGoals(prev => {
+                                        const updated = { ...prev };
+                                        delete updated[subject];
+                                        return updated;
+                                      });
                                     }
                                   }}
-                                  onBlur={async (e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (Number.isFinite(value)) {
-                                      const clamped = Math.min(6, Math.max(1, value));
-                                      setExamSimulator({ ...examSimulator, [subject]: clamped });
-                                      if (user && database.userId && database.setExamGrade) {
-                                        await database.setExamGrade(subject, clamped).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
-                                      }
+                                  onFocus={(e) => e.target.select()}
+                                  onBlur={() => {
+                                    // Persist change to DB if needed
+                                    if (user && database.userId && database.setUserPreferences) {
+                                      database.setUserPreferences({ exam_goals: examGoals }).catch(err =>
+                                        console.warn('Error saving exam goal:', err.message || err)
+                                      );
                                     }
                                   }}
-                                  className="w-full p-2 border border-gray-300 rounded"
+                                  className="w-16 p-1 border border-gray-300 rounded text-sm font-semibold text-center"
                                 />
                               </div>
-                              <div>
-                                <label className="block text-xs text-gray-700 mb-1">{definitiveLabel}</label>
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  min="1"
-                                  max="6"
-                                  value={definitiveExamGrade || ''}
-                                  onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (value >= 1 && value <= 6) {
-                                      setFinalExamGrades({ ...finalExamGrades, [subject]: value });
-                                    } else if (e.target.value === '') {
-                                      setFinalExamGrades({ ...finalExamGrades, [subject]: '' });
-                                    }
-                                  }}
-                                  onBlur={async (e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (Number.isFinite(value)) {
-                                      const clamped = Math.min(6, Math.max(1, value));
-                                      setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
-                                      if (user && database.userId && database.setFinalExamGrade) {
-                                        await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
+                            </div>
+                          )}
+
+                          {hasFinalInput && (
+                            <div>
+                              <div className="grid gap-3 sm:grid-cols-2 mb-3">
+                                <div>
+                                  <label className="block text-xs text-gray-700 mb-1">{simulatedLabel}</label>
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    min="1"
+                                    max="6"
+                                    value={simulatedExamGrade || ''}
+                                    disabled={Boolean(definitiveExamGrade)}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value);
+                                      if (value >= 1 && value <= 6) {
+                                        setExamSimulator({ ...examSimulator, [subject]: value });
+                                      } else if (e.target.value === '') {
+                                        setExamSimulator({ ...examSimulator, [subject]: '' });
                                       }
-                                    }
-                                  }}
-                                  className="w-full p-2 border border-gray-300 rounded"
-                                />
+                                    }}
+                                    onBlur={async (e) => {
+                                      const value = parseFloat(e.target.value);
+                                      if (Number.isFinite(value)) {
+                                        const clamped = Math.min(6, Math.max(1, value));
+                                        setExamSimulator({ ...examSimulator, [subject]: clamped });
+                                        if (user && database.userId && database.setExamGrade) {
+                                          await database.setExamGrade(subject, clamped).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
+                                        }
+                                      }
+                                    }}
+                                    className={`w-full p-2 border rounded ${
+                                      definitiveExamGrade
+                                        ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                                        : 'border-gray-300'
+                                    }`}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs text-gray-700 mb-1">{definitiveLabel}</label>
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    min="1"
+                                    max="6"
+                                    value={definitiveExamGrade || ''}
+                                    onChange={(e) => {
+                                      const value = parseFloat(e.target.value);
+                                      if (value >= 1 && value <= 6) {
+                                        setFinalExamGrades({ ...finalExamGrades, [subject]: value });
+                                      } else if (e.target.value === '') {
+                                        setFinalExamGrades({ ...finalExamGrades, [subject]: '' });
+                                      }
+                                    }}
+                                    onBlur={async (e) => {
+                                      const value = parseFloat(e.target.value);
+                                      if (Number.isFinite(value)) {
+                                        const clamped = Math.min(6, Math.max(1, value));
+                                        setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
+                                        if (user && database.userId && database.setFinalExamGrade) {
+                                          await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
+                                        }
+                                      }
+                                    }}
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                  />
+                                </div>
                               </div>
+                              {definitiveExamGrade && (
+                                <div className="text-xs text-gray-500 italic">
+                                  Simulation deaktiviert (definitive Note gespeichert)
+                                </div>
+                              )}
                             </div>
                           )}
 
