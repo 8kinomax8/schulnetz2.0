@@ -3076,7 +3076,7 @@ export default function BMGradeCalculator() {
 
                           {hasFinalInput && requiredExam && requiredExam > 6 && (
                             <div className="mb-3 p-2 bg-red-100 rounded text-xs text-red-700">
-                              ⚠️ Ziel nicht erreichbar (Note über 6.0 erforderlich)
+                              ⚠️ Ziel nicht erreichbar
                             </div>
                           )}
 
