@@ -729,37 +729,40 @@ export default function BMGradeCalculator() {
     resetAnalysis();
   }, [bmTab, resetAnalysis]);
 
-  // Handle paste for SAL scanner
+  // Global paste handler
   useEffect(() => {
     const handlePaste = (e) => {
+      // Ignore if typing in input
+      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
       const items = e.clipboardData?.items;
       if (!items) return;
 
       for (let item of items) {
-        // Only process images for SAL
-        if (item.type.startsWith('image/')) {
+        if (item.type.startsWith('image/') || item.type === 'application/pdf') {
           const file = item.getAsFile();
           if (file) {
             e.preventDefault();
-            // Create a synthetic event to pass to handleEfzSalUpload
-            const event = {
-              target: {
-                files: [file]
-              }
-            };
-            handleEfzSalUpload(event);
+            const event = { target: { files: [file] } };
+            
+            if (mainTab === 'efz') {
+               if (efzTab === 'scan-sal') {
+                 handleEfzSalUpload(event);
+               } else if (efzTab === 'previous') {
+                 handleEfzBulletinUpload(event);
+               }
+            } else if (mainTab === 'bm') {
+               handleFileUpload(event, bmTab);
+            }
             break;
           }
         }
       }
     };
 
-    const container = salPasteContainerRef.current;
-    if (container) {
-      container.addEventListener('paste', handlePaste);
-      return () => container.removeEventListener('paste', handlePaste);
-    }
-  }, []);
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  });
 
   const handleSemesterSelect = async (semester) => {
     setCurrentSemester(semester);
@@ -953,6 +956,7 @@ export default function BMGradeCalculator() {
       const controls = Array.isArray(result?.controls) ? result.controls : [];
       let addedModules = 0;
       let addedUek = 0;
+      const addedItems = [];
 
       for (const control of controls) {
         const rawSubject = String(control.subject || '').trim();
@@ -969,6 +973,7 @@ export default function BMGradeCalculator() {
             control.name || 'SAL'
           );
           addedUek += 1;
+          addedItems.push(`üK: ${normalizedGrade}`);
           continue;
         }
 
@@ -983,11 +988,15 @@ export default function BMGradeCalculator() {
           control.name || 'SAL',
           'import'
         );
-        if (wasAdded) addedModules += 1;
+        if (wasAdded) {
+          addedModules += 1;
+          addedItems.push(`${moduleCode}: ${normalizedGrade}`);
+        }
       }
 
       setEfzAnalysisResult({
-        message: `${addedModules} Modulnote(n) hinzugefügt, ${addedUek} üK-Note(n) hinzugefügt.`
+        message: `${addedModules} Modulnote(n) hinzugefügt, ${addedUek} üK-Note(n) hinzugefügt.`,
+        details: addedItems
       });
     } catch (error) {
       console.error('EFZ SAL analysis error:', error);
@@ -1017,6 +1026,7 @@ export default function BMGradeCalculator() {
 
       let addedModules = 0;
       let addedUek = 0;
+      const addedItems = [];
       for (const semesterData of semesters) {
         const semester = semesterData?.semester || currentSemester;
         const grades = semesterData?.grades || {};
@@ -1039,6 +1049,7 @@ export default function BMGradeCalculator() {
               fullName
             );
             addedUek += 1;
+            addedItems.push(`üK S${semester}: ${normalizedGrade}`);
             continue;
           }
 
@@ -1057,7 +1068,10 @@ export default function BMGradeCalculator() {
             'import',
             semester
           );
-          if (wasAdded) addedModules += 1;
+          if (wasAdded) {
+            addedModules += 1;
+            addedItems.push(`${moduleCode} S${semester}: ${normalizedGrade}`);
+          }
         }
       }
 
@@ -1069,7 +1083,7 @@ export default function BMGradeCalculator() {
         ? `${addedUek} üK-Note(n) aus alten Zeugnissen hinzugefügt.`
         : 'Keine neuen Daten hinzugefügt.';
 
-      setEfzAnalysisResult({ message });
+      setEfzAnalysisResult({ message, details: addedItems });
     } catch (error) {
       console.error('EFZ bulletin analysis error:', error);
       setEfzAnalysisResult({ error: 'Fehler bei der Analyse des Berufsschul-Zeugnisses.' });
@@ -2206,8 +2220,15 @@ export default function BMGradeCalculator() {
                       </div>
                     )}
                     {efzAnalysisResult?.message && (
-                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-green-700 text-sm">
-                        {efzAnalysisResult.message}
+                      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm overflow-hidden">
+                        <div className="text-green-700 font-semibold mb-1">{efzAnalysisResult.message}</div>
+                        {efzAnalysisResult.details && efzAnalysisResult.details.length > 0 && (
+                          <ul className="list-disc list-inside text-green-600 ml-4 max-h-32 overflow-y-auto">
+                            {efzAnalysisResult.details.map((detail, idx) => (
+                              <li key={idx}>{detail}</li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                     )}
                   </div>
@@ -2659,12 +2680,20 @@ export default function BMGradeCalculator() {
                         <input
                           type="number"
                           step="0.1"
-                          min="1"
+                          min="4"
                           max="6"
                           value={finalGoal}
                           onChange={(e) => {
                             const value = parseFloat(e.target.value);
                             if (Number.isFinite(value)) setFinalGoal(value);
+                          }}
+                          onBlur={(e) => {
+                            let value = parseFloat(e.target.value);
+                            if (Number.isFinite(value)) {
+                              if (value < 4) value = 4;
+                              if (value > 6) value = 6;
+                              setFinalGoal(value);
+                            }
                           }}
                           className="w-24 p-2 border border-gray-300 rounded text-sm"
                         />
@@ -2675,16 +2704,16 @@ export default function BMGradeCalculator() {
                   <div className="mt-4 grid md:grid-cols-3 gap-4">
                     <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                       <div className="text-xs text-gray-600">Schulteil</div>
-                      <div className="text-xl font-bold text-gray-800">{schoolPart?.toFixed(1) || '-'}</div>
+                      <div className="text-xl font-bold text-gray-800">{schoolPartAllSemesters?.toFixed(1) || '-'}</div>
                     </div>
                     <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                       <div className="text-xs text-gray-600">Lehrabschlussnote</div>
-                      <div className="text-xl font-bold text-gray-800">{finalGrade?.toFixed(1) || '-'}</div>
+                      <div className="text-xl font-bold text-gray-800">{finalGradeAllSemesters?.toFixed(1) || '-'}</div>
                     </div>
                     <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                       <div className="text-xs text-gray-600">Benötigte IPA-Note</div>
                       <div className="text-xl font-bold text-gray-800">
-                        {apprenticeshipCalculations.getRequiredIpaGrade(finalGoal)?.toFixed(1) || '-'}
+                        {apprenticeshipCalculationsAllSemesters.getRequiredIpaGrade(finalGoal)?.toFixed(1) || '-'}
                       </div>
                     </div>
                   </div>

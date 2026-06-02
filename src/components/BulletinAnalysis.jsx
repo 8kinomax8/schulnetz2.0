@@ -13,45 +13,6 @@ export default function BulletinAnalysis({
 }) {
   const containerRef = useRef(null);
 
-  // Gestionnaire pour coller une image
-  useEffect(() => {
-    const handlePaste = (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let item of items) {
-        let file = null;
-
-        // Vérifier si c'est une image
-        if (item.type.startsWith('image/')) {
-          file = item.getAsFile();
-        }
-        // Vérifier si c'est un PDF
-        else if (item.type === 'application/pdf') {
-          file = item.getAsFile();
-        }
-
-        if (file) {
-          e.preventDefault();
-          // Créer un événement synthétique pour réutiliser handleFileUpload
-          const event = {
-            target: {
-              files: [file]
-            }
-          };
-          onFileUpload(event, activeTab);
-          break;
-        }
-      }
-    };
-
-    const container = containerRef.current;
-    if (container) {
-      container.addEventListener('paste', handlePaste);
-      return () => container.removeEventListener('paste', handlePaste);
-    }
-  }, [activeTab, onFileUpload]);
-
   return (
     <div 
       ref={containerRef}

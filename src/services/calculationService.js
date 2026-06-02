@@ -103,11 +103,12 @@ export const calculateRequiredWeightedGrade = (currentGrades, targetAverage, nex
  * Simule une moyenne avec des contrôles planifiés
  * @param {Array} currentGrades - Notes actuelles
  * @param {Array} plannedControls - Contrôles planifiés
- * @returns {number|null} Moyenne simulée
+ * @returns {number|null} Moyenne simulée arrondie
  */
 export const simulateAverage = (currentGrades, plannedControls) => {
   const allGrades = normalizeWeightedGrades([...(currentGrades || []), ...(plannedControls || [])]);
-  return calculateWeightedAverage(allGrades);
+  const avg = calculateWeightedAverage(allGrades);
+  return avg === null ? null : roundToHalfOrWhole(avg);
 };
 
 /**
@@ -338,14 +339,14 @@ export const simulateUekAverage = (currentGrades, plannedGrades) => {
 };
 
 /**
- * Calcule la partie ecole (80% modules, 20% ueK), arrondie au demi-point
+ * Calcule la partie ecole (80% modules, 20% ueK), arrondie au dixieme
  * @param {number|null} modulesAverage - Moyenne modules arrondie a 0.5
  * @param {number|null} uekAverage - Moyenne ueK arrondie a 0.5
  * @returns {number|null} Partie ecole arrondie ou null (null if either is missing)
  */
 export const calculateSchoolPart = (modulesAverage, uekAverage) => {
   if (!Number.isFinite(modulesAverage) || !Number.isFinite(uekAverage)) return null;
-  return roundToHalfOrWhole((modulesAverage * 0.8) + (uekAverage * 0.2));
+  return roundToTenth((modulesAverage * 0.8) + (uekAverage * 0.2));
 };
 
 /**
