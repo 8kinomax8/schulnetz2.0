@@ -3,6 +3,7 @@
  * Serverless handler for document scanning via Claude API
  * Handles: SAL screenshots, bulletin PDFs, EFZ module scans
  */
+/* global process */
 
 import { createClient } from '@supabase/supabase-js';
 
@@ -45,6 +46,8 @@ OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 RULES:
 - Use ONLY these subject names: Deutsch, Englisch, Französisch, Mathematik, Naturwissenschaften, Finanz- und Rechnungswesen, Wirtschaft und Recht, Geschichte und Politik, Interdisziplinäres Arbeiten in den Fächern
 - grades are numeric (4.5, 5.0, etc)
+- NEVER round grades. Return exactly the numeric grade visible in the document.
+- If more than 10 grades are visible, return {"error": "too many grades visible"}.
 - If no data found: {"error": "no grades found"}
 `;
 
@@ -63,6 +66,8 @@ RULES:
 - subject: deduce from column header or name. Use canonical names: Deutsch, Englisch, Französisch, Mathematik, Naturwissenschaften, Finanz- und Rechnungswesen, Wirtschaft und Recht, Geschichte und Politik, Interdisziplinäres Arbeiten in den Fächern
 - date: extract as YYYY-MM-DD (or DD.MM.YYYY if YYYY-MM-DD not possible)
 - grade: numeric value (6.0, 5.5, 4.0, etc)
+- NEVER round grades. Return exactly the numeric grade visible in the screenshot.
+- If more than 10 assessments are visible, return {"error": "too many grades visible"}.
 - If no data: {"error": "no assessments found"}
 `;
 
@@ -110,6 +115,7 @@ CRITICAL RULES:
    - REQUIRED - must be numeric (4.5, 5.0, 6.0, etc.)
    - Valid range: 1.0 to 6.0 for Swiss system
    - If value is not numeric or unclear, SKIP this row entirely
+   - NEVER round grades. Return exactly the numeric grade visible in the screenshot.
 
 6. WEIGHT:
    - Optional, default 1
@@ -120,6 +126,7 @@ CRITICAL RULES:
    - Do NOT filter or skip rows
    - Do NOT invent data not visible in the screenshot
    - Do NOT hallucinate module names if not shown
+   - If more than 10 graded entries are visible, return {"error": "too many grades visible"}
 
 If no data found: {"error": "no assessments found"}
 If unclear format: {"error": "could not parse SAL format"}
@@ -195,6 +202,7 @@ CRITICAL RULES - READ CAREFULLY:
    - If a cell is empty, "-", "—", or blank: SKIP that semester for that entry
    - Ignore any text in grade cells; only take the number
    - Decimal format: "5.0", "4.5", "3.5" are valid; "5", "4" should be treated as-is
+   - NEVER round grades. Return exactly the numeric grade visible in the document.
 
 5. CODE GENERATION RULES:
    - Check each row for an existing code (M###, M###, etc.)
@@ -209,6 +217,7 @@ CRITICAL RULES - READ CAREFULLY:
    - Do NOT misread headers or formatting as grades
    - Do NOT assume semesters exist if no grade column is present
    - If uncertain about a value, SKIP it
+   - If more than 10 grades are visible in the image, return {"error": "too many grades visible"}
 
 7. HANDLING MULTI-LINE SUBJECT NAMES:
    - Subject names may span multiple lines (e.g., wrapped text)
@@ -362,7 +371,7 @@ async function verifySupabaseToken(token) {
 // RATE LIMITING HELPERS
 // ============================================================================
 
-async function checkRateLimit(userId, token) {
+async function checkRateLimit(userId) {
   if (!supabase) {
     console.warn('[RateLimit] Supabase not configured, skipping rate limit check');
     return { allowed: true, remaining: null };
@@ -372,11 +381,6 @@ async function checkRateLimit(userId, token) {
     const now = new Date();
     const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-    // Create client with user token for RLS
-    const userSupabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: `Bearer ${token}` } }
-    });
 
     // Query 15-minute window
     const { data: recent15m, error: error15m } = await supabase
@@ -531,7 +535,7 @@ export default async function handler(req, res) {
     console.log(`[Auth] Authenticated user: ${user.id}`);
 
     // ========== RATE LIMITING CHECK ==========
-    const rateLimitCheck = await checkRateLimit(user.id, token);
+    const rateLimitCheck = await checkRateLimit(user.id);
     
     // Add rate limit headers
     res.setHeader('X-RateLimit-Limit-15m', '3');

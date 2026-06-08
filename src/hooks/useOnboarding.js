@@ -72,6 +72,19 @@ export function useOnboarding(user) {
       }
 
       setUserPreferencesState(data);
+      localStorage.setItem('currentSemester', String(currentSemester));
+      let saved = {};
+      try {
+        saved = JSON.parse(localStorage.getItem('bm-calculator-data') || '{}');
+      } catch {
+        saved = {};
+      }
+      localStorage.setItem('bm-calculator-data', JSON.stringify({
+        ...saved,
+        currentSemester,
+        bmType,
+        maturnoteGoal: 5.0
+      }));
       setNeedsOnboarding(false);
       return { data, error: null };
     } catch (error) {

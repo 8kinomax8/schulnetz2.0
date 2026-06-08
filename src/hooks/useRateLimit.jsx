@@ -2,6 +2,7 @@
  * Hook pour gérer le rate limiting du scan API
  * Fournit l'état du rate limiting et les méthodes pour l'afficher
  */
+/* eslint-disable react-refresh/only-export-components */
 
 import { useState, useEffect, useCallback } from 'react';
 import { getRateLimitState } from '../services/apiService';

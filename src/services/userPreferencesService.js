@@ -16,10 +16,14 @@ export async function getUserPreferences() {
  * Crée ou met à jour les préférences utilisateur
  */
 export async function setUserPreferences({ currentSemester, bmType, maturanoteGoal = 5.0, tourCompleted = false }) {
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError) return { data: null, error: authError };
+
   const { data, error } = await supabase
     .from('user_preferences')
     .upsert(
       {
+        user_id: authData.user.id,
         current_semester: currentSemester,
         bm_type: bmType,
         maturanote_goal: maturanoteGoal,

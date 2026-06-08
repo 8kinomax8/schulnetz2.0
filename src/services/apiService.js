@@ -69,7 +69,7 @@ const compressImage = async (file) => {
       try {
         const img = new Image();
         
-        img.onload = () => {
+        const handleImageLoad = () => {
           try {
             const canvas = document.createElement('canvas');
             let width = img.width;
@@ -155,7 +155,7 @@ const compressImage = async (file) => {
 
         img.onload = function() {
           clearTimeout(loadTimeout);
-          img.onload.call(this);
+          handleImageLoad();
         };
 
         img.src = e.target.result;
@@ -199,28 +199,25 @@ const compressImage = async (file) => {
  * @param {File} file - Fichier à convertir
  * @returns {Promise<string>} Base64 data
  */
-const fileToBase64 = (file) => {
-  return new Promise(async (resolve, reject) => {
-    // Check file size upfront
-    const MAX_FILEREADER_SIZE = 3 * 1024 * 1024; // 3MB limit
-    if (file.size > MAX_FILEREADER_SIZE) {
-      reject(new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILEREADER_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`));
-      return;
-    }
+const fileToBase64 = async (file) => {
+  // Check file size upfront
+  const MAX_FILEREADER_SIZE = 3 * 1024 * 1024; // 3MB limit
+  if (file.size > MAX_FILEREADER_SIZE) {
+    throw new Error(`Fichier trop volumineux (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum: ${(MAX_FILEREADER_SIZE / 1024 / 1024).toFixed(0)} MB. Merci de compresser le fichier ou de fournir une version plus petite.`);
+  }
 
-    // For images, use canvas compression to reduce size
-    if (file.type && file.type.startsWith('image/')) {
-      try {
-        console.log(`🖼️ Compressing image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
-        const compressed = await compressImage(file);
-        resolve(compressed);
-        return;
-      } catch (e) {
-        console.warn('Image compression failed, falling back to direct conversion:', e.message);
-        // Fall through to direct conversion if compression fails
-      }
+  // For images, use canvas compression to reduce size
+  if (file.type && file.type.startsWith('image/')) {
+    try {
+      console.log(`🖼️ Compressing image: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+      return await compressImage(file);
+    } catch (e) {
+      console.warn('Image compression failed, falling back to direct conversion:', e.message);
+      // Fall through to direct conversion if compression fails
     }
+  }
 
+  return new Promise((resolve, reject) => {
     // Direct FileReader conversion (for PDFs, or if compression failed)
     const reader = new FileReader();
     
@@ -504,7 +501,7 @@ export const processSALScan = (result, currentSubjects, validSubjects) => {
     }
 
     const normalizedDate = control.date ? formatSwissDate(control.date) : '';
-    const normalizedWeight = Math.max(1, Math.round(normalizeNumber(control.weight) || 1));
+    const normalizedWeight = Math.max(0.01, normalizeNumber(control.weight) || 1);
     const controlId = `${canon}-${normalizedDate}-${normalizedGrade}`;
     
     // Check if this assessment already exists

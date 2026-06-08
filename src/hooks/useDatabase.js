@@ -569,6 +569,14 @@ export function useDatabase(user) {
     }
   }, []);
 
+  const updateEfzModule = useCallback(async (id, updates) => {
+    try {
+      return await efz.updateModule(id, updates);
+    } catch (err) {
+      console.error('Error updating EFZ module:', err);
+    }
+  }, []);
+
   const getEfzModuleGrades = useCallback(async (module_id) => {
     try {
       return await efz.getModuleGrades(module_id);
@@ -672,6 +680,7 @@ export function useDatabase(user) {
     getUserEfzModules,
     addEfzModule,
     removeEfzModule,
+    updateEfzModule,
     getEfzModuleGrades,
     addEfzModuleGrade,
     removeEfzModuleGrade,

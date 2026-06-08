@@ -12,6 +12,7 @@ import { formatSwissDate } from '../utils';
  * @param {number} currentSemester - Semestre actuel
  * @param {Function} onAddControl - Callback pour ajouter un contrôle à Supabase
  * @param {Function} onSaveBulletin - Callback pour sauvegarder une note de bulletin à Supabase
+ * @param {Function|null} setPreviousUekGrades - Setter optionnel pour les üK scannés dans les anciens bulletins
  * @returns {Object} {isAnalyzing, analysisResult, analyzeFile, handleFileUpload, resetAnalysis}
  */
 export const useBulletinAnalysis = (
@@ -22,7 +23,8 @@ export const useBulletinAnalysis = (
   validSubjects,
   currentSemester,
   onAddControl = null,
-  onSaveBulletin = null
+  onSaveBulletin = null,
+  setPreviousUekGrades = null
 ) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
@@ -62,7 +64,7 @@ export const useBulletinAnalysis = (
           for (const control of addedControls) {
             try {
               const normalizedGrade = normalizeNumber(control.grade);
-              const normalizedWeight = Math.max(1, Math.round(normalizeNumber(control.weight) || 1));
+              const normalizedWeight = Math.max(0.01, normalizeNumber(control.weight) || 1);
               const normalizedDate = control.date ? formatSwissDate(control.date) : null;
 
               console.log('💾 Saving control to Supabase:', { subject: control.subject, grade: normalizedGrade, weight: normalizedWeight, date: normalizedDate });

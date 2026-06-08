@@ -32,7 +32,6 @@ export function validateConfig() {
 }
 
 export default {
-  BACKEND_CONFIG,
   FRONTEND_CONFIG,
   validateConfig
 };

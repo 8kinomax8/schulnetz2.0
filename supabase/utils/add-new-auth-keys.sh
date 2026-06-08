@@ -202,8 +202,13 @@ done
 
 # Uncomment new auth configuration in docker-compose.yml
 echo "Updating docker-compose.yml..."
-if [ ! -f docker-compose.yml ]; then
-    echo "Error: docker-compose.yml not found in $(pwd)"
+compose_file="docker-compose.yml"
+if [ ! -f "$compose_file" ] && [ -f ../docker-compose.yml ]; then
+    compose_file="../docker-compose.yml"
+fi
+
+if [ ! -f "$compose_file" ]; then
+    echo "Error: docker-compose.yml not found in $(pwd) or parent directory"
     exit 1
 fi
 
@@ -212,11 +217,11 @@ sed -i.old \
     -e '/^[ ]*#GOTRUE_JWT_KEYS:/ s/#//' \
     -e '/^[ ]*#API_JWT_JWKS:/ s/#//' \
     -e '/^[ ]*#JWT_JWKS:/ s/#//' \
-    docker-compose.yml || true
+    "$compose_file" || true
 
-if grep -q '^[ ]*GOTRUE_JWT_KEYS:' docker-compose.yml && \
-   grep -q '^[ ]*API_JWT_JWKS:' docker-compose.yml && \
-   grep -q '^[ ]*JWT_JWKS:' docker-compose.yml; then
+if grep -q '^[ ]*GOTRUE_JWT_KEYS:' "$compose_file" && \
+   grep -q '^[ ]*API_JWT_JWKS:' "$compose_file" && \
+   grep -q '^[ ]*JWT_JWKS:' "$compose_file"; then
     echo "Done."
 else
     echo "Warning: could not edit docker-compose.yml. Uncomment auth configuration manually."

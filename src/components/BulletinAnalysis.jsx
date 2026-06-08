@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef } from 'react';
 import { Upload, Camera } from 'lucide-react';
 import { formatSwissDate } from '../utils';
 
@@ -48,6 +48,7 @@ export default function BulletinAnalysis({
                   <p className="text-sm text-gray-600 text-center">
                     Nur Bilddateien (JPG, PNG)<br />
                     <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
+                    <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
                   </p>
                 </>
               ) : (
@@ -56,6 +57,7 @@ export default function BulletinAnalysis({
                   <p className="text-sm text-gray-600 text-center">
                     Bilddatei (JPG, PNG) oder PDF<br />
                     <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
+                    <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
                   </p>
                 </>
               )}
@@ -83,12 +85,12 @@ export default function BulletinAnalysis({
             <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
               <strong>Fehler:</strong> {analysisResult.error}
             </div>
-          ) : analysisResult.controls ? (
+          ) : analysisResult.message ? (
             <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
               <div className="font-semibold text-green-800 mb-2">
-                ✅ {analysisResult.message}
+                {analysisResult.message}
               </div>
-              {analysisResult.controls.length > 0 && (
+              {analysisResult.controls?.length > 0 && (
                 <div className="space-y-2 text-sm text-green-700">
                   {analysisResult.controls.map((control, idx) => (
                     <div key={idx} className="bg-white rounded p-2">
@@ -109,6 +111,23 @@ export default function BulletinAnalysis({
                         <span className="text-gray-700 flex-1 px-4 text-left">{control.name}</span>
                         <span className="font-bold text-green-700 w-16 text-right flex-shrink-0">{control.grade}</span>
                         <span className="text-gray-500 text-xs w-24 text-right flex-shrink-0">{formatSwissDate(control.date)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {analysisResult.semesters?.length > 0 && (
+                <div className="space-y-2 text-sm text-green-700">
+                  {analysisResult.semesters.map(({ semester, mappedGrades }, idx) => (
+                    <div key={`${semester}-${idx}`} className="bg-white rounded p-2">
+                      <div className="font-semibold text-green-800 mb-1">S{semester}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                        {Object.entries(mappedGrades || {}).map(([subject, grade]) => (
+                          <div key={subject} className="flex justify-between gap-3">
+                            <span className="text-gray-700 truncate">{subject}</span>
+                            <span className="font-bold text-green-700">{Number(grade).toFixed(1)}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}

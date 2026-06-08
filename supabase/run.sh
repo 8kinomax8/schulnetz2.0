@@ -49,6 +49,59 @@ docker_compose() {
     docker compose $ENV_ARGS -f ../docker-compose.yml "$@"
 }
 
+ensure_env_file() {
+    if [ ! -f .env ]; then
+        if [ -f .env.example ]; then
+            cp .env.example .env
+            echo "===> Created supabase/.env from supabase/.env.example"
+        else
+            echo "ERROR: .env not found in $(pwd)" >&2
+            exit 1
+        fi
+    fi
+}
+
+ensure_auth_keys() {
+    ensure_env_file
+
+    missing_legacy=false
+    for var in JWT_SECRET ANON_KEY SERVICE_ROLE_KEY POSTGRES_PASSWORD DASHBOARD_PASSWORD; do
+        value=$(grep "^${var}=" .env | head -n1 | cut -d= -f2- | tr -d '\r')
+        [ -n "$value" ] || missing_legacy=true
+    done
+
+    if [ "$missing_legacy" = true ]; then
+        echo "===> Generating Supabase legacy JWT keys in supabase/.env..."
+        sh utils/generate-keys.sh --update-env
+    fi
+
+    missing_new_auth=false
+    for var in SUPABASE_PUBLISHABLE_KEY SUPABASE_SECRET_KEY JWT_KEYS JWT_JWKS; do
+        value=$(grep "^${var}=" .env | head -n1 | cut -d= -f2- | tr -d '\r')
+        [ -n "$value" ] || missing_new_auth=true
+    done
+
+    if [ "$missing_new_auth" = true ]; then
+        echo "===> Generating Supabase publishable/auth keys in supabase/.env..."
+        sh utils/add-new-auth-keys.sh --update-env
+    fi
+}
+
+open_app_browser() {
+    url="${APP_URL:-http://localhost:3000}"
+    case "$(uname -s 2>/dev/null)" in
+        Darwin)
+            open "$url" >/dev/null 2>&1 || true
+            ;;
+        Linux)
+            if command -v xdg-open >/dev/null 2>&1; then
+                xdg-open "$url" >/dev/null 2>&1 || true
+            fi
+            ;;
+    esac
+    echo "===> App ready: $url"
+}
+
 # Normalize an override argument:
 #   pg17                       -> docker-compose.pg17.yml
 #   docker-compose.pg17.yml    -> docker-compose.pg17.yml
@@ -140,6 +193,8 @@ CMD="${1:-help}"
 
 case "$CMD" in
     start|up)
+        ensure_auth_keys
+
         # 1. Print key passwords and API keys automatically
         sh run.sh secrets
 
@@ -159,6 +214,8 @@ case "$CMD" in
             echo "ERROR: Database is not ready or accessible." >&2
             exit 1
         fi
+
+        open_app_browser
         ;;
     stop|down)
         docker_compose down "$@"

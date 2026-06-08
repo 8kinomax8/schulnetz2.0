@@ -34,6 +34,11 @@ export const roundToTenth = (value) => {
   return Math.round((value + Number.EPSILON) * 10) / 10;
 };
 
+export const roundToHundredth = (value) => {
+  if (!Number.isFinite(value)) return null;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+};
+
 /**
  * Calcule la moyenne semestrielle d'une matière
  * @param {Array} grades - Notes de la matière
@@ -107,8 +112,7 @@ export const calculateRequiredWeightedGrade = (currentGrades, targetAverage, nex
  */
 export const simulateAverage = (currentGrades, plannedControls) => {
   const allGrades = normalizeWeightedGrades([...(currentGrades || []), ...(plannedControls || [])]);
-  const avg = calculateWeightedAverage(allGrades);
-  return avg === null ? null : roundToHalfOrWhole(avg);
+  return calculateWeightedAverage(allGrades);
 };
 
 /**
@@ -321,8 +325,7 @@ export const calculateRawUekAverage = (uekGrades) => {
  */
 export const simulateModuleAverage = (currentGrades, plannedGrades) => {
   const mergedGrades = normalizeWeightedGrades([...(currentGrades || []), ...(plannedGrades || [])]);
-  const avg = calculateWeightedAverage(mergedGrades);
-  return avg === null ? null : roundToHalfOrWhole(avg);
+  return calculateWeightedAverage(mergedGrades);
 };
 
 /**
@@ -334,8 +337,7 @@ export const simulateModuleAverage = (currentGrades, plannedGrades) => {
 export const simulateUekAverage = (currentGrades, plannedGrades) => {
   const normalizedGrades = normalizeWeightedGrades([...(currentGrades || []), ...(plannedGrades || [])]);
   if (normalizedGrades.length === 0) return null;
-  const avg = calculateWeightedAverage(normalizedGrades);
-  return avg === null ? null : roundToHalfOrWhole(avg);
+  return calculateWeightedAverage(normalizedGrades);
 };
 
 /**
@@ -368,7 +370,8 @@ export const calculateFinalGrade = (schoolPart, ipaGrade) => {
  */
 export const calculateRequiredIpa = (targetFinal, schoolPart) => {
   if (!Number.isFinite(targetFinal) || !Number.isFinite(schoolPart)) return null;
-  return (targetFinal * 2) - schoolPart;
+  const minimumRawFinal = Math.max(1, targetFinal - 0.05);
+  return Math.min(6, Math.max(1, roundToHundredth((minimumRawFinal * 2) - schoolPart)));
 };
 
 /**

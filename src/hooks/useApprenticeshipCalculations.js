@@ -6,6 +6,7 @@ import {
   calculateModulesAverageFromModules,
   calculateRawModulesAverageFromModules,
   calculateRequiredWeightedGrade,
+  roundToHalfOrWhole,
   calculateSchoolPart,
   calculateFinalGrade,
   calculateRequiredIpa,
@@ -62,6 +63,7 @@ export const useApprenticeshipCalculations = (
 
     const simulatedAverages = Array.from(moduleIds)
       .map((moduleId) => getSimulatedModuleAverage(moduleId))
+      .map((value) => Number.isFinite(value) ? roundToHalfOrWhole(value) : value)
       .filter((value) => Number.isFinite(value));
 
     return calculateModulesAverage(simulatedAverages);
@@ -109,7 +111,11 @@ export const useApprenticeshipCalculations = (
   };
 
   const getSimulatedSchoolPart = () => {
-    return calculateSchoolPart(getSimulatedModulesAverage(), getSimulatedUekAverage());
+    const simulatedUekAverage = getSimulatedUekAverage();
+    return calculateSchoolPart(
+      getSimulatedModulesAverage(),
+      Number.isFinite(simulatedUekAverage) ? roundToHalfOrWhole(simulatedUekAverage) : simulatedUekAverage
+    );
   };
 
   const getFinalGrade = (overrideIpaGrade = null) => {

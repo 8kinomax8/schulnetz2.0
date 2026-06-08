@@ -17,7 +17,6 @@ import { useDatabase } from './hooks/useDatabase';
 import SemesterPrompt from './components/SemesterPrompt';
 import { storage, formatSwissDate } from './utils';
 import { analyzeBulletin } from './services/apiService';
-import { setUserPreferences } from './services/userPreferencesService';
 
 const swissDateToSQL = (swissDate) => {
   if (!swissDate || typeof swissDate !== 'string') return '';
@@ -46,47 +45,6 @@ const sqlDateToSwiss = (sqlDate) => {
   if (!day || !month || !year) return '';
 
   return `${day}.${month}.${year}`;
-};
-
-const getStoredExamInputValue = (store, subject, componentKey = null) => {
-  const value = store?.[subject];
-  if (componentKey && value && typeof value === 'object' && !Array.isArray(value)) {
-    return value[componentKey] || '';
-  }
-  return !componentKey && Number.isFinite(value) ? value : '';
-};
-
-const setStoredExamInputValue = (store, setStore, subject, componentKey, rawValue) => {
-  const value = parseFloat(rawValue);
-  if (rawValue === '') {
-    if (componentKey) {
-      const nextSubjectValue = { ...(store[subject] || {}) };
-      delete nextSubjectValue[componentKey];
-      setStore({ ...store, [subject]: nextSubjectValue });
-    } else {
-      setStore({ ...store, [subject]: '' });
-    }
-    return;
-  }
-
-  if (value >= 1 && value <= 6) {
-    if (componentKey) {
-      setStore({
-        ...store,
-        [subject]: {
-          ...(store[subject] && typeof store[subject] === 'object' ? store[subject] : {}),
-          [componentKey]: value
-        }
-      });
-    } else {
-      setStore({ ...store, [subject]: value });
-    }
-  }
-};
-
-const clampExamValue = (rawValue) => {
-  const value = parseFloat(rawValue);
-  return Number.isFinite(value) ? Math.min(6, Math.max(1, value)) : null;
 };
 
 const AuthBackdrop = ({ children, contentClassName = 'w-full max-w-xl' }) => (
@@ -169,6 +127,7 @@ export default function BMGradeCalculator() {
   const [uekGoal, setUekGoal] = useState(5.0);
   const [newModuleCode, setNewModuleCode] = useState('');
   const [newModuleName, setNewModuleName] = useState('');
+  const [moduleFormError, setModuleFormError] = useState(false);
 
   // State for manual entry of old semester grades (BM)
   const [bmManualSubject, setBmManualSubject] = useState('');
@@ -198,11 +157,11 @@ export default function BMGradeCalculator() {
 
   // Tutorial State
   const [runTour, setRunTour] = useState(false);
-  const [isTourCompleted, setIsTourCompleted] = useState(() => {
+  const [, setIsTourCompleted] = useState(() => {
     // Restore tour completion status from localStorage on mount
     return localStorage.getItem('schulnetz_tour_completed') === 'true';
   });
-  const tourLaunchedThisSession = useRef(false); // Track if tour has been launched this session
+  // const tourLaunchedThisSession = useRef(false); // Track if tour has been launched this session
 
   // DISABLED: Auto-launch of Joyride tour
   // useEffect(() => {
@@ -672,7 +631,8 @@ export default function BMGradeCalculator() {
     validSubjects,
     currentSemester,
     addControlToDatabase,
-    saveBulletinToDatabase
+    saveBulletinToDatabase,
+    setPreviousUekGrades
   );
 
   // Handle previousUekGrades from bulletin scan
@@ -955,7 +915,7 @@ export default function BMGradeCalculator() {
 
       const controls = Array.isArray(result?.controls) ? result.controls : [];
       let addedModules = 0;
-      let addedUek = 0;
+      let ignoredUek = 0;
       const addedItems = [];
 
       for (const control of controls) {
@@ -965,15 +925,7 @@ export default function BMGradeCalculator() {
         if (normalizedGrade === null) continue;
 
         if (/^ueK|^üK|\bueK\b|\büK\b/i.test(rawSubject)) {
-          addUekGrade(
-            'ueK',
-            normalizedGrade,
-            1,
-            control.date ? formatSwissDate(control.date) : '',
-            control.name || 'SAL'
-          );
-          addedUek += 1;
-          addedItems.push(`üK: ${normalizedGrade}`);
+          ignoredUek += 1;
           continue;
         }
 
@@ -995,7 +947,7 @@ export default function BMGradeCalculator() {
       }
 
       setEfzAnalysisResult({
-        message: `${addedModules} Modulnote(n) hinzugefügt, ${addedUek} üK-Note(n) hinzugefügt.`,
+        message: `${addedModules} Modulnote(n) hinzugefügt${ignoredUek ? `, ${ignoredUek} üK-Eintrag/Einträge ignoriert` : ''}.`,
         details: addedItems
       });
     } catch (error) {
@@ -1229,7 +1181,11 @@ export default function BMGradeCalculator() {
   const addModule = async () => {
     const code = normalizeModuleCode(newModuleCode);
     const name = newModuleName.trim();
-    if (!code) return;
+    if (!code || !name) {
+      setModuleFormError(true);
+      return;
+    }
+    setModuleFormError(false);
 
     // Persist to EFZ DB when possible
     let efzId = null;
@@ -1466,7 +1422,7 @@ export default function BMGradeCalculator() {
     });
   };
 
-  const calculateRequiredGradeWithPlans = (subject, targetAverage, assumedWeight = 1) => {
+  const calculateRequiredGradeWithPlans = (subject, targetAverage, assumedWeight = 1, calculationTarget = null) => {
     const baseGrades = subjects[subject] || [];
     const planned = (semesterPlans[subject] || []).map(p => ({
       grade: parseFloat(p.grade),
@@ -1484,13 +1440,12 @@ export default function BMGradeCalculator() {
 
     const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
     const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
-    const required = (targetAverage * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
-    
-    // Clamp result to valid grade range [1.0, 6.0]
-    return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
+    const target = Number.isFinite(calculationTarget) ? calculationTarget : targetAverage;
+    const required = (target * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
+    return Math.max(1.0, Math.min(6.0, Math.round(required * 100) / 100));
   };
 
-  const calculateRequiredModuleGradeWithPlans = (moduleId, targetAverage, assumedWeight = 1) => {
+  const calculateRequiredModuleGradeWithPlans = (moduleId, targetAverage, assumedWeight = 1, calculationTarget = null) => {
     const baseGrades = moduleGradesCurrentSemesterOnly[moduleId] || [];
     const planned = modulePlans[moduleId] || [];
     const all = [...baseGrades, ...planned]
@@ -1505,10 +1460,9 @@ export default function BMGradeCalculator() {
 
     const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
     const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
-    const required = (targetAverage * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
-    
-    // Clamp result to valid grade range [1.0, 6.0]
-    return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
+    const target = Number.isFinite(calculationTarget) ? calculationTarget : targetAverage;
+    const required = (target * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
+    return Math.max(1.0, Math.min(6.0, Math.round(required * 100) / 100));
   };
 
   const addBmManualSemesterGrade = async (subject, semester, grade) => {
@@ -1698,7 +1652,7 @@ export default function BMGradeCalculator() {
 
   const formatAverage = (rounded, exact = null) => {
     if (!Number.isFinite(rounded)) return '-';
-    return `${rounded.toFixed(1)}${Number.isFinite(exact) ? ` (${exact.toFixed(1)})` : ''}`;
+    return `${rounded.toFixed(1)}${Number.isFinite(exact) ? ` (${exact.toFixed(2)})` : ''}`;
   };
 
   const moduleMeta = new Map(moduleCatalog.map(module => [module.code, module]));
@@ -1741,17 +1695,30 @@ export default function BMGradeCalculator() {
     setModuleGoals(prev => { const newData = { ...prev }; delete newData[code]; return newData; });
   };
 
-  const modulesAverage = apprenticeshipCalculations.getModulesAverage();
-  const rawModulesAverage = apprenticeshipCalculations.getRawModulesAverage();
-  const uekAverage = apprenticeshipCalculations.getUekAverage();
-  const schoolPart = apprenticeshipCalculations.getSchoolPart();
-  const finalGrade = apprenticeshipCalculations.getFinalGrade();
-  const efzOverallAverage = apprenticeshipCalculations.getOverallFinalGrade();
-  const efzRawOverallAverage = apprenticeshipCalculations.getRawOverallFinalGrade();
+  const moveModuleToSemester = async (code, semester) => {
+    const targetSemester = normalizeSemesterValue(semester, currentSemester);
+    const moduleEntry = moduleCatalog.find(m => m.code === code);
+    setModuleCatalog(prev => prev.map(m => (
+      m.code === code ? { ...m, semester: targetSemester } : m
+    )));
+    setModuleGrades(prev => ({
+      ...prev,
+      [code]: (prev[code] || []).map(g => ({ ...g, semester: targetSemester }))
+    }));
+    if (user && database.userId && moduleEntry?.efz_id && database.updateEfzModule) {
+      try {
+        await database.updateEfzModule(moduleEntry.efz_id, { semester: targetSemester });
+      } catch (err) {
+        console.warn('Error moving EFZ module:', err.message || err);
+      }
+    }
+  };
+
+  const efzOverallAverage = apprenticeshipCalculationsAllSemesters.getOverallFinalGrade();
+  const efzRawOverallAverage = apprenticeshipCalculationsAllSemesters.getRawOverallFinalGrade();
 
   // For final grade tab: use calculations including ALL semesters
   const modulesAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getModulesAverage();
-  const rawModulesAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getRawModulesAverage();
   const uekAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getUekAverage();
   const schoolPartAllSemesters = apprenticeshipCalculationsAllSemesters.getSchoolPart();
   const finalGradeAllSemesters = apprenticeshipCalculationsAllSemesters.getFinalGrade();
@@ -2188,11 +2155,15 @@ export default function BMGradeCalculator() {
                     <div className="flex items-center justify-start gap-3 mb-4">
                       <Camera className="w-5 h-5 text-purple-600" />
                       <h3 className="text-lg font-semibold text-gray-800">
-                      SAL-Module scannen
+                        SAL scannen
                       </h3>
                     </div>
                     <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
-                      <div className="text-sm text-gray-600">SAL-Screenshot importieren (JPG, PNG)<br /><span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span></div>
+                      <div className="text-sm text-gray-600 text-center">
+                        SAL-Screenshot importieren (JPG, PNG)<br />
+                        <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
+                        <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
+                      </div>
                       <input
                         type="file"
                         className="hidden"
@@ -2272,15 +2243,21 @@ export default function BMGradeCalculator() {
                               type="text"
                               placeholder="Code (z. B. M152)"
                               value={newModuleCode}
-                              onChange={(e) => setNewModuleCode(e.target.value)}
-                              className="w-32 p-2 border border-gray-300 rounded text-sm"
+                              onChange={(e) => {
+                                setNewModuleCode(e.target.value);
+                                setModuleFormError(false);
+                              }}
+                              className={`w-32 p-2 border rounded text-sm ${moduleFormError && !newModuleCode.trim() ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                             />
                             <input
                               type="text"
                               placeholder="Modulname"
                               value={newModuleName}
-                              onChange={(e) => setNewModuleName(e.target.value)}
-                              className="w-48 p-2 border border-gray-300 rounded text-sm"
+                              onChange={(e) => {
+                                setNewModuleName(e.target.value);
+                                setModuleFormError(false);
+                              }}
+                              className={`w-48 p-2 border rounded text-sm ${moduleFormError && !newModuleName.trim() ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                             />
                             <button
                               onClick={addModule}
@@ -2306,6 +2283,13 @@ export default function BMGradeCalculator() {
                                 title={label}
                                 titleActions={
                                   <>
+                                    <button
+                                      onClick={() => moveModuleToSemester(module.code, Math.max(1, currentSemester - 1))}
+                                      className="px-2 py-1.5 bg-purple-100 hover:bg-purple-200 rounded text-purple-700 text-xs font-medium"
+                                      title="In Alte Zeugnisse verschieben"
+                                    >
+                                      Alt
+                                    </button>
                                     <button
                                       onClick={() => {
                                         setEditingModuleCode(module.code);
@@ -2381,7 +2365,7 @@ export default function BMGradeCalculator() {
                               simulatedAverage={apprenticeshipCalculations.getSimulatedModuleAverage(moduleId)}
                               goalGrade={goal}
                               onGoalChange={(value) => setModuleGoals({ ...moduleGoals, [moduleId]: value })}
-                              computeRequired={(assumedWeight) => calculateRequiredModuleGradeWithPlans(moduleId, goal, assumedWeight)}
+                              computeRequired={(assumedWeight, target) => calculateRequiredModuleGradeWithPlans(moduleId, goal, assumedWeight, target)}
                             />
                           );
                         })}
@@ -2505,6 +2489,13 @@ export default function BMGradeCalculator() {
                                 title={label}
                                 titleActions={
                                   <>
+                                    <button
+                                      onClick={() => moveModuleToSemester(module.code, currentSemester)}
+                                      className="px-2 py-1.5 bg-amber-100 hover:bg-amber-200 rounded text-amber-700 text-xs font-medium"
+                                      title="In Aktuell verschieben"
+                                    >
+                                      Aktuell
+                                    </button>
                                     <button
                                       onClick={() => {
                                         setEditingModuleCode(module.code);
@@ -2679,7 +2670,7 @@ export default function BMGradeCalculator() {
                           value={finalGoal}
                           onChange={(e) => {
                             const value = parseFloat(e.target.value);
-                            if (Number.isFinite(value)) setFinalGoal(value);
+                            if (Number.isFinite(value)) setFinalGoal(Math.min(6, Math.max(4, value)));
                           }}
                           onBlur={(e) => {
                             let value = parseFloat(e.target.value);
@@ -2707,7 +2698,7 @@ export default function BMGradeCalculator() {
                     <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                       <div className="text-xs text-gray-600">Benötigte IPA-Note</div>
                       <div className="text-xl font-bold text-gray-800">
-                        {apprenticeshipCalculationsAllSemesters.getRequiredIpaGrade(finalGoal)?.toFixed(1) || '-'}
+                        {apprenticeshipCalculationsAllSemesters.getRequiredIpaGrade(finalGoal)?.toFixed(2) || '-'}
                       </div>
                     </div>
                   </div>
@@ -2782,7 +2773,7 @@ export default function BMGradeCalculator() {
                           simulatedAverage={calculations.getSimulatedSemesterAverage(subject)}
                           goalGrade={goalGrade}
                           onGoalChange={(goal) => setSubjectGoals({ ...subjectGoals, [subject]: goal })}
-                          computeRequired={(assumedWeight) => calculateRequiredGradeWithPlans(subject, goalGrade, assumedWeight)}
+                          computeRequired={(assumedWeight, target) => calculateRequiredGradeWithPlans(subject, goalGrade, assumedWeight, target)}
                         />
                       );
                     })}

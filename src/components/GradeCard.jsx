@@ -62,7 +62,7 @@ export default function GradeCard({
               {semesterAverage.toFixed(1)}
               {Number.isFinite(exactAverage) && (
                 <span className="ml-1 text-xs font-semibold text-gray-500">
-                  ({exactAverage.toFixed(1)})
+                  ({exactAverage.toFixed(2)})
                 </span>
               )}
             </span>

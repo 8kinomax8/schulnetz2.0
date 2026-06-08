@@ -37,11 +37,22 @@ export async function removeModule(id) {
   return true;
 }
 
+export async function updateModule(id, updates) {
+  const { data, error } = await supabase
+    .from('efz_modules')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // Module grades
 export async function getModuleGrades(module_id) {
   const { data, error } = await supabase
     .from('efz_module_grades')
-    .select('id, module_id, grade, weight, date, control_name, source, created_at')
+    .select('id, module_id, grade, weight, date, control_name, source, semester, created_at')
     .eq('module_id', module_id)
     .order('date', { ascending: false });
   if (error) throw error;
@@ -139,6 +150,7 @@ export default {
   getUserModules,
   addModule,
   removeModule,
+  updateModule,
   getModuleGrades,
   addModuleGrade,
   removeModuleGrade,

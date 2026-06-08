@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { roundToHalfOrWhole } from '../services/calculationService';
+import { parseWeight, roundToHalfOrWhole } from '../services/calculationService';
 
 /**
  * Component to simulate a semester average with planned assessments.
@@ -29,17 +29,11 @@ export default function SemesterSimulatorCard({
     setGoalInput(Number.isFinite(goalGrade) ? String(goalGrade) : '');
   }, [goalGrade]);
 
-  const parseWeight = (w) => {
-    if (typeof w !== 'string') return parseFloat(w);
-    if (w.includes('/')) {
-      const [num, den] = w.split('/').map(n => parseFloat(n.trim()));
-      return num / den;
-    }
-    if (w.includes('%')) {
-      return parseFloat(w.replace('%', '').trim()) / 100;
-    }
-    return parseFloat(w);
-  };
+  const parsedGoalInput = parseFloat(String(goalInput).replace(',', '.'));
+  const effectiveGoal = Number.isFinite(parsedGoalInput)
+    ? Math.min(6, Math.max(1, parsedGoalInput))
+    : goalGrade;
+  const requiredTarget = Math.max(1, effectiveGoal - 0.25);
 
   const handleAdd = () => {
     if (!grade || !weight) return;
@@ -54,7 +48,8 @@ export default function SemesterSimulatorCard({
   // eslint-disable-next-line no-unused-vars
   const totalCurrentWeight = currentGrades.reduce((sum, g) => sum + parseWeight(g.weight ?? 1), 0);
   const totalPlannedWeight = (plannedControls || []).reduce((sum, p) => sum + parseWeight(p.weight ?? 1), 0);
-  const requiredWithPlans = computeRequired(parseWeight(assumedWeight));
+  const requiredWithPlans = computeRequired(parseWeight(assumedWeight), requiredTarget);
+  const roundedSimulatedAverage = roundToHalfOrWhole(simulatedAverage);
 
   return (
     <div className="border-2 border-blue-200 rounded-lg p-4 bg-gradient-to-r from-blue-50 to-cyan-50">
@@ -69,7 +64,13 @@ export default function SemesterSimulatorCard({
               min="1"
               max="6"
               value={goalInput}
-              onChange={(e) => setGoalInput(e.target.value)}
+              onChange={(e) => {
+                setGoalInput(e.target.value);
+                const value = parseFloat(e.target.value.replace(',', '.'));
+                if (Number.isFinite(value)) {
+                  onGoalChange(Math.min(6, Math.max(1, value)));
+                }
+              }}
               onFocus={(e) => e.target.select()}
               onBlur={() => {
                 const raw = goalInput.trim();
@@ -79,15 +80,14 @@ export default function SemesterSimulatorCard({
                   return;
                 }
                 const clamped = Math.min(6, Math.max(1, value));
-                const rounded = roundToHalfOrWhole(clamped);
-                onGoalChange(rounded);
-                setGoalInput(String(rounded));
+                onGoalChange(clamped);
+                setGoalInput(String(clamped));
               }}
               className="w-16 p-1 border border-indigo-300 rounded text-sm font-bold text-center"
             />
           </div>
           <div className="text-xs text-gray-500 italic">
-            (Berechnet für {goalGrade.toFixed(1)})
+            (Berechnet für {requiredTarget.toFixed(2)})
           </div>
         </div>
       </div>
@@ -111,7 +111,7 @@ export default function SemesterSimulatorCard({
                 ? 'text-green-600'
                 : 'text-blue-900'
           }`}>
-            {requiredWithPlans?.toFixed(1) || '-'}
+            {requiredWithPlans?.toFixed(2) || '-'}
           </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-gray-500 text-xs">Gewicht:</span>
@@ -188,13 +188,13 @@ export default function SemesterSimulatorCard({
           </div>
         )}
 
-        {simulatedAverage && (
+        {Number.isFinite(simulatedAverage) && (
           <div className={`text-center p-3 rounded-lg font-bold ${
-            roundToHalfOrWhole(simulatedAverage) >= goalGrade
+            roundedSimulatedAverage >= goalGrade
               ? 'bg-green-100 text-green-800'
               : 'bg-orange-100 text-orange-800'
           }`}>
-            Simulierter Durchschnitt: {simulatedAverage.toFixed(2)} → {roundToHalfOrWhole(simulatedAverage).toFixed(1)}
+            Simulierter Durchschnitt: {simulatedAverage.toFixed(2)} → {roundedSimulatedAverage.toFixed(1)}
           </div>
         )}
       </div>
