@@ -87,7 +87,7 @@ export default function SemesterSimulatorCard({
             />
           </div>
           <div className="text-xs text-gray-500 italic">
-            (Berechnet für {(goalGrade - 0.25).toFixed(2)})
+            (Berechnet für {goalGrade.toFixed(1)})
           </div>
         </div>
       </div>

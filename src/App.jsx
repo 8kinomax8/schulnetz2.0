@@ -1478,39 +1478,33 @@ export default function BMGradeCalculator() {
         weight: calculations.parseWeight(g.weight ?? 1)
       }))
       .filter(g => Number.isFinite(g.grade) && Number.isFinite(g.weight) && g.weight > 0);
-    if (all.length === 0) return null;
+    
     const parsedAssumedWeight = calculations.parseWeight(assumedWeight);
     if (!Number.isFinite(parsedAssumedWeight) || parsedAssumedWeight <= 0) return null;
 
-    // Convert rounded goal to real goal (e.g.: 6 → 5.75, 5 → 4.75)
-    // This ensures the raw average rounds UP to the target when rounded to nearest 0.5
-    const realTarget = targetAverage - 0.25;
-
     const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
     const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
-    const required = (realTarget * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
+    const required = (targetAverage * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
     
     // Clamp result to valid grade range [1.0, 6.0]
     return Math.max(1.0, Math.min(6.0, Math.round(required * 10) / 10));
   };
 
   const calculateRequiredModuleGradeWithPlans = (moduleId, targetAverage, assumedWeight = 1) => {
-    const baseGrades = moduleGrades[moduleId] || [];
+    const baseGrades = moduleGradesCurrentSemesterOnly[moduleId] || [];
     const planned = modulePlans[moduleId] || [];
-    const all = [...baseGrades, ...planned];
-    if (all.length === 0) return null;
+    const all = [...baseGrades, ...planned]
+      .map(g => ({
+        grade: parseFloat(g.grade),
+        weight: apprenticeshipCalculations.parseWeight(g.weight ?? 1)
+      }))
+      .filter(g => Number.isFinite(g.grade) && Number.isFinite(g.weight) && g.weight > 0);
 
     const parsedAssumedWeight = apprenticeshipCalculations.parseWeight(assumedWeight);
-    if (!Number.isFinite(parsedAssumedWeight)) return null;
+    if (!Number.isFinite(parsedAssumedWeight) || parsedAssumedWeight <= 0) return null;
 
-    const currentTotalWeight = all.reduce(
-      (sum, g) => sum + apprenticeshipCalculations.parseWeight(g.weight ?? 1),
-      0
-    );
-    const currentSum = all.reduce(
-      (sum, g) => sum + (parseFloat(g.grade) * apprenticeshipCalculations.parseWeight(g.weight ?? 1)),
-      0
-    );
+    const currentTotalWeight = all.reduce((sum, g) => sum + g.weight, 0);
+    const currentSum = all.reduce((sum, g) => sum + (g.grade * g.weight), 0);
     const required = (targetAverage * (currentTotalWeight + parsedAssumedWeight) - currentSum) / parsedAssumedWeight;
     
     // Clamp result to valid grade range [1.0, 6.0]

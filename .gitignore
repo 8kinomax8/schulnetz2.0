@@ -15,10 +15,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Environment variables
+# Environment variables (secrets — never commit)
 .env
-.env*.local
+.env.local
+.env.*.local
 .env.keys
+!.env.example
+!supabase/.env.example
 
 # Editor directories and files
 .vscode/
@@ -34,11 +37,15 @@ lerna-debug.log*
 # Testing
 coverage/
 .nyc_output/
+allure-results/
+allure-report/
 
 # Tooling caches
 .eslintcache
 .vite/
 .cache/
+.turbo/
+.pnpm-store/
 
 # OS files
 Thumbs.db
@@ -52,16 +59,47 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+tmp/
 
-# Skills
+# Deployment
+.vercel/
+.serverless/
+
+# Secrets & credentials
+keys.json
+gcloud.json
+**/.sentryclirc
+
+# AI assistant local files
+.claude/*
+!.claude/settings.json
+!.claude/scripts/
+!.claude/skills/
+.claude/skills/me-*
+CLAUDE.md
+!.claude/CLAUDE.md
+
+# Skills (local tooling)
 *.agent
 *.claude
 *skill*
 *.continue
 
-# Supabase
+# Playwright MCP
+.playwright-mcp/
+
+# Supabase CLI cache
 supabase/.temp/
 supabase/.branches/
-database/
 .branches
 .temp
+
+# Supabase self-hosted — données et secrets locaux (ne jamais versionner)
+supabase/.env
+supabase/volumes/db/data/
+supabase/volumes/storage/
+supabase/volumes/snippets/
+supabase/schema.sql
+
+# Legacy database dumps
+database/
