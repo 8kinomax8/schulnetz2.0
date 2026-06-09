@@ -654,17 +654,16 @@ export default function BMGradeCalculator() {
 
   // Create apprenticeship calculations for current semester and previous semesters
   
-  // Filter module grades to only show current semester for calculations
-  const filterModuleGradesBySemester = (grades, targetSemester) => {
-    if (!Array.isArray(grades)) return [];
-    return grades.filter(g => (g.semester || currentSemester) === targetSemester);
+  const isModuleInCurrentSemester = (code) => {
+    const moduleEntry = moduleCatalog.find(m => m.code === code);
+    if (!moduleEntry) return false;
+    return normalizeSemesterValue(moduleEntry.semester, currentSemester) >= currentSemester;
   };
 
+  // A module belongs to one semester. Show and calculate all grades attached to
+  // current modules, even if older rows still carry a stale grade-level semester.
   const moduleGradesCurrentSemesterOnly = Object.fromEntries(
-    Object.entries(moduleGrades).map(([code, grades]) => [
-      code,
-      filterModuleGradesBySemester(grades, currentSemester)
-    ])
+    Object.entries(moduleGrades).filter(([code]) => isModuleInCurrentSemester(code))
   );
 
   const apprenticeshipCalculations = useApprenticeshipCalculations(
@@ -705,7 +704,7 @@ export default function BMGradeCalculator() {
             e.preventDefault();
             const event = { target: { files: [file] } };
             
-            if (mainTab === 'efz') {
+            if (mainTab === 'berufsschule') {
                if (efzTab === 'scan-sal') {
                  handleEfzSalUpload(event);
                } else if (efzTab === 'previous') {
@@ -2029,7 +2028,7 @@ export default function BMGradeCalculator() {
                 </div>
                 <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
                   <div className="text-xs text-amber-700 mb-1">Berufsschule</div>
-                  <div className="text-3xl font-bold text-amber-900">{formatAverage(efzRawOverallAverage)}</div>
+                  <div className="text-3xl font-bold text-amber-900">{formatAverage(efzOverallAverage, efzRawOverallAverage)}</div>
                   {(!Number.isFinite(efzOverallAverage)) && (
                     <div className="text-xs text-amber-600 mt-2">Bitte Noten hinzufügen</div>
                   )}
@@ -2162,7 +2161,7 @@ export default function BMGradeCalculator() {
                       <div className="text-sm text-gray-600 text-center">
                         SAL-Screenshot importieren (JPG, PNG)<br />
                         <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
-                        <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
+                        <span className="mt-1 block text-xs text-orange-600">Zu starkes Herauszoomen führt zu Scanfehlern.</span>
                       </div>
                       <input
                         type="file"
@@ -3056,12 +3055,14 @@ export default function BMGradeCalculator() {
                       const erfahrungsnote = calculations.getErfahrungsnote(subject);
                       const simulatedExamGrade = examSimulator[subject];
                       const definitiveExamGrade = finalExamGrades[subject];
+                      const hasDefinitiveExamGrade = Number.isFinite(parseFloat(definitiveExamGrade));
                       const maturnote = calculations.getExamAverage(subject);
                       const subjectGoal = examGoals[subject] || maturnoteGoal;
                       const requiredExam = calculations.getRequiredExamGrade(subject, subjectGoal);
                       const isExamSubject = EXAM_SUBJECTS[bmType].includes(subject);
                       const isInterdisciplinary = BM_SUBJECTS[bmType].interdisziplinar.includes(subject);
                       const hasFinalInput = isExamSubject || isInterdisciplinary;
+                      const showExamPlanning = hasFinalInput && !hasDefinitiveExamGrade;
                       const simulatedLabel = isInterdisciplinary ? 'Simulierte IDPA-Projektnote' : 'Simulierte Abschlussprüfungsnote';
                       const definitiveLabel = isInterdisciplinary ? 'Definitive IDPA-Projektnote' : 'Definitive Abschlussprüfungsnote';
 
@@ -3074,7 +3075,7 @@ export default function BMGradeCalculator() {
                               <span className="text-gray-600">Erfahrungsnote:</span>
                               <div className="font-bold text-lg">{erfahrungsnote?.toFixed(1) || '-'}</div>
                             </div>
-                            {hasFinalInput && (
+                            {showExamPlanning && (
                               <div>
                                 <span className="text-gray-600">Benötigte Note:</span>
                                 <div className={`font-bold text-lg ${
@@ -3088,13 +3089,13 @@ export default function BMGradeCalculator() {
                             )}
                           </div>
 
-                          {hasFinalInput && requiredExam && requiredExam > 6 && (
+                          {showExamPlanning && requiredExam && requiredExam > 6 && (
                             <div className="mb-3 p-2 bg-red-100 rounded text-xs text-red-700">
                               ⚠️ Ziel nicht erreichbar
                             </div>
                           )}
 
-                          {hasFinalInput && (
+                          {showExamPlanning && (
                             <div className="mb-3 flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-gray-700">Ziel:</span>
@@ -3142,7 +3143,7 @@ export default function BMGradeCalculator() {
                                     min="1"
                                     max="6"
                                     value={simulatedExamGrade || ''}
-                                    disabled={Boolean(definitiveExamGrade)}
+                                    disabled={hasDefinitiveExamGrade}
                                     onChange={(e) => {
                                       const value = parseFloat(e.target.value);
                                       if (value >= 1 && value <= 6) {

@@ -48,7 +48,7 @@ export default function BulletinAnalysis({
                   <p className="text-sm text-gray-600 text-center">
                     Nur Bilddateien (JPG, PNG)<br />
                     <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
-                    <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
+                    <span className="mt-1 block text-xs text-orange-600">Zu starkes Herauszoomen führt zu Scanfehlern.</span>
                   </p>
                 </>
               ) : (
@@ -57,7 +57,7 @@ export default function BulletinAnalysis({
                   <p className="text-sm text-gray-600 text-center">
                     Bilddatei (JPG, PNG) oder PDF<br />
                     <span className="text-xs text-gray-500">Cmd+V / Ctrl+V zum Einfügen</span>
-                    <span className="mt-1 block text-xs text-orange-600">Maximal 10 Noten pro Screenshot.</span>
+                    <span className="mt-1 block text-xs text-orange-600">Zu starkes Herauszoomen führt zu Scanfehlern.</span>
                   </p>
                 </>
               )}
