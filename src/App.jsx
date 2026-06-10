@@ -929,7 +929,7 @@ export default function BMGradeCalculator() {
       }
 
       // Exact duplicate: All details match
-      return storedGradeDiff < 0.01 && sameDate && sameName && sameSemester;
+      return storedGradeDiff < 0.0005 && sameDate && sameName && sameSemester;
     });
 
     if (isDuplicate) return false;
@@ -1346,7 +1346,7 @@ export default function BMGradeCalculator() {
     const isDuplicate = existingGrades.some(g => {
       const storedDate = g.date ? formatSwissDate(g.date) : '';
       return (
-        Math.abs(g.grade - normalizedGrade) < 0.01 &&
+        Math.abs(g.grade - normalizedGrade) < 0.0005 &&
         storedDate === normalizedDate &&
         (g.name || '').trim() === (normalizedName || '') &&
         (g.semester || currentSemester) === targetSemester
@@ -2393,6 +2393,8 @@ export default function BMGradeCalculator() {
                                 exactAverage={apprenticeshipCalculations.getRawModuleAverage(module.code)}
                                 targetGrade={5.0}
                                 requiredGrade={apprenticeshipCalculations.getRequiredModuleGrade(module.code, 5.0)}
+                                gradeStep="0.001"
+                                gradeDecimals={3}
                               />
                             </div>
                           );
@@ -2594,6 +2596,8 @@ export default function BMGradeCalculator() {
                                 exactAverage={getRawModuleAverageAllSemesters(module.code)}
                                 targetGrade={5.0}
                                 requiredGrade={null}
+                                gradeStep="0.01"
+                                gradeDecimals={2}
                               />
                             </div>
                           );

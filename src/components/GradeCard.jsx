@@ -16,7 +16,9 @@ export default function GradeCard({
   fixedWeight = null,
   hideWeightInput = false,
   containerClassName = '',
-  titleActions = null
+  titleActions = null,
+  gradeStep = '0.5',
+  gradeDecimals = 1
 }) {
   const [newGrade, setNewGrade] = useState('');
   const [weight, setWeight] = useState('1');
@@ -79,7 +81,7 @@ export default function GradeCard({
                 key={g.id}
                 className="flex items-center text-xs bg-white rounded p-1.5 sm:p-2 border mb-1 min-w-0"
               >
-                <span className="font-semibold flex-shrink-0">{g.grade.toFixed(1)}</span>
+                <span className="font-semibold flex-shrink-0">{g.grade.toFixed(gradeDecimals)}</span>
                 <span className="text-gray-400 hidden sm:inline mx-0.5">×</span>
                 <span className="text-gray-400 hidden sm:inline flex-shrink-0">{g.displayWeight || g.weight}</span>
                 <span className="text-gray-400 hidden sm:inline ml-2 flex-shrink-0 text-xs">{g.date ? `(${g.date})` : ''}</span>
@@ -105,7 +107,7 @@ export default function GradeCard({
         <div className="flex flex-wrap gap-2">
           <input
             type="number"
-            step="0.5"
+            step={gradeStep}
             min="1"
             max="6"
             placeholder="Note"
