@@ -220,6 +220,15 @@ export async function removeIpa(id) {
   return true;
 }
 
+export async function clearFinalIpa() {
+  const { error } = await supabase
+    .from('efz_ipa')
+    .delete()
+    .eq('is_final', true);
+  if (error) throw error;
+  return true;
+}
+
 export default {
   getUserModules,
   addModule,
@@ -233,5 +242,6 @@ export default {
   removeUekGrade,
   getIpa,
   setIpa,
+  clearFinalIpa,
   removeIpa
 };

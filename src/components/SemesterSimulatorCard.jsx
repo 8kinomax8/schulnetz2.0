@@ -21,19 +21,21 @@ export default function SemesterSimulatorCard({
   const [weight, setWeight] = useState('1');
   const [assumedWeight, setAssumedWeight] = useState('1');
   const [goalInput, setGoalInput] = useState(() => (
-    Number.isFinite(goalGrade) ? String(goalGrade) : ''
+    Number.isFinite(goalGrade) ? Number(goalGrade).toFixed(1) : ''
   ));
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- keep input in sync with prop updates
-    setGoalInput(Number.isFinite(goalGrade) ? String(goalGrade) : '');
+    setGoalInput(Number.isFinite(goalGrade) ? Number(goalGrade).toFixed(1) : '');
   }, [goalGrade]);
 
   const parsedGoalInput = parseFloat(String(goalInput).replace(',', '.'));
   const effectiveGoal = Number.isFinite(parsedGoalInput)
-    ? Math.min(6, Math.max(1, parsedGoalInput))
+    ? roundToHalfOrWhole(Math.min(6, Math.max(1, parsedGoalInput)))
     : goalGrade;
   const requiredTarget = Math.max(1, effectiveGoal - 0.25);
+
+  const formatHalfStep = (value) => Number(value).toFixed(1);
 
   const handleAdd = () => {
     if (!grade || !weight) return;
@@ -68,7 +70,7 @@ export default function SemesterSimulatorCard({
                 setGoalInput(e.target.value);
                 const value = parseFloat(e.target.value.replace(',', '.'));
                 if (Number.isFinite(value)) {
-                  onGoalChange(Math.min(6, Math.max(1, value)));
+                  onGoalChange(roundToHalfOrWhole(Math.min(6, Math.max(1, value))));
                 }
               }}
               onFocus={(e) => e.target.select()}
@@ -76,12 +78,12 @@ export default function SemesterSimulatorCard({
                 const raw = goalInput.trim();
                 const value = parseFloat(raw.replace(',', '.'));
                 if (!raw || !Number.isFinite(value)) {
-                  setGoalInput(Number.isFinite(goalGrade) ? String(goalGrade) : '');
+                  setGoalInput(Number.isFinite(goalGrade) ? Number(goalGrade).toFixed(1) : '');
                   return;
                 }
-                const clamped = Math.min(6, Math.max(1, value));
+                const clamped = roundToHalfOrWhole(Math.min(6, Math.max(1, value)));
                 onGoalChange(clamped);
-                setGoalInput(String(clamped));
+                setGoalInput(formatHalfStep(clamped));
               }}
               className="w-16 p-1 border border-indigo-300 rounded text-sm font-bold text-center"
             />
@@ -190,7 +192,7 @@ export default function SemesterSimulatorCard({
 
         {Number.isFinite(simulatedAverage) && (
           <div className={`text-center p-3 rounded-lg font-bold ${
-            roundedSimulatedAverage >= goalGrade
+            roundedSimulatedAverage >= effectiveGoal
               ? 'bg-green-100 text-green-800'
               : 'bg-orange-100 text-orange-800'
           }`}>

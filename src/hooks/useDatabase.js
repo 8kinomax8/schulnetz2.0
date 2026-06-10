@@ -296,6 +296,26 @@ export function useDatabase(user) {
     }
   }, [userId]);
 
+  const removeSemesterGrade = useCallback(async (subjectName, semester) => {
+    if (!userId) return null;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const subject = await ensureSubject(subjectName);
+      return await semesterGradeService.deleteSemesterGradeBySubjectAndSemester(
+        subject.id,
+        semester
+      );
+    } catch (err) {
+      setError(err.message);
+      console.error('Error removing semester grade:', err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [userId, ensureSubject]);
+
   // ============================================
   // SEMESTER PLANS
   // ============================================
@@ -644,6 +664,14 @@ export function useDatabase(user) {
     }
   }, []);
 
+  const clearEfzFinalIpa = useCallback(async () => {
+    try {
+      return await efz.clearFinalIpa();
+    } catch (err) {
+      console.error('Error clearing final IPA:', err);
+    }
+  }, []);
+
   const removeEfzIpa = useCallback(async (id) => {
     try {
       return await efz.removeIpa(id);
@@ -665,6 +693,7 @@ export function useDatabase(user) {
     removeGrade,
     getUserGrades,
     setSemesterGrade,
+    removeSemesterGrade,
     getUserSemesterGrades,
     addSemesterPlan,
     removeSemesterPlan,
@@ -689,6 +718,7 @@ export function useDatabase(user) {
     removeEfzUekGrade,
     getEfzIpa,
     setEfzIpa,
+    clearEfzFinalIpa,
     removeEfzIpa,
     setFinalExamGrade
   };

@@ -84,6 +84,50 @@ const LoadingState = () => (
   </div>
 );
 
+const CelebrationBurst = ({ activeKey }) => {
+  if (!activeKey) return null;
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[9500] overflow-hidden" aria-hidden="true">
+      <style>{`
+        @keyframes celebration-pop {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.15); }
+          12% { opacity: 1; }
+          100% { opacity: 0; transform: translate(calc(-50% + var(--x)), calc(-50% + var(--y))) scale(1); }
+        }
+        .celebration-spark {
+          animation: celebration-pop 950ms ease-out forwards;
+          animation-delay: var(--delay);
+          background: var(--color);
+          left: var(--left);
+          top: var(--top);
+        }
+      `}</style>
+      {Array.from({ length: 32 }, (_, index) => {
+        const angle = (index / 32) * Math.PI * 2;
+        const distance = 88 + (index % 4) * 22;
+        const left = 35 + ((index * 17) % 30);
+        const top = 28 + ((index * 11) % 28);
+        const colors = ['#f59e0b', '#22c55e', '#3b82f6', '#ec4899', '#a855f7'];
+        return (
+          <span
+            key={`${activeKey}-${index}`}
+            className="celebration-spark absolute h-2.5 w-2.5 rounded-full shadow-lg"
+            style={{
+              '--x': `${Math.cos(angle) * distance}px`,
+              '--y': `${Math.sin(angle) * distance}px`,
+              '--left': `${left}%`,
+              '--top': `${top}%`,
+              '--delay': `${(index % 8) * 35}ms`,
+              '--color': colors[index % colors.length]
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
+
 export default function BMGradeCalculator() {
   const { user, authLoading, signOut } = useAuth();
   const { needsOnboarding, onboardingLoading, completeOnboarding } = useOnboarding(user);
@@ -124,6 +168,8 @@ export default function BMGradeCalculator() {
   const [uekPlans, setUekPlans] = useState([]);
   const [ipaGrade, setIpaGrade] = useState(null);
   const [finalGoal, setFinalGoal] = useState(5.0);
+  const [finalGoalInput, setFinalGoalInput] = useState('5');
+  const [celebrationKey, setCelebrationKey] = useState(null);
   const [uekGoal, setUekGoal] = useState(5.0);
   const [newModuleCode, setNewModuleCode] = useState('');
   const [newModuleName, setNewModuleName] = useState('');
@@ -204,6 +250,16 @@ export default function BMGradeCalculator() {
       initialLoadAttempted.current = false;
     }
   }, [user]);
+
+  useEffect(() => {
+    setFinalGoalInput(Number.isFinite(finalGoal) ? String(finalGoal) : '');
+  }, [finalGoal]);
+
+  useEffect(() => {
+    if (!celebrationKey) return;
+    const timer = window.setTimeout(() => setCelebrationKey(null), 1300);
+    return () => window.clearTimeout(timer);
+  }, [celebrationKey]);
 
   // Load data from database on login
   useEffect(() => {
@@ -533,6 +589,16 @@ export default function BMGradeCalculator() {
     const n = normalizeNumber(value);
     if (n === null) return null;
     return Math.min(6, Math.max(1, n));
+  };
+
+  const clampHalfStepGoal = (value, min = 1, max = 6) => {
+    const n = normalizeNumber(value);
+    if (n === null) return null;
+    return Math.min(max, Math.max(min, Math.round(n * 2) / 2));
+  };
+
+  const triggerCelebration = (scope) => {
+    setCelebrationKey(`${scope}-${Date.now()}`);
   };
 
   const clearEfzMessage = () => {
@@ -1761,7 +1827,7 @@ export default function BMGradeCalculator() {
     },
     {
       target: '[data-tour="efz-aktuell"]',
-      content: 'Aktuell: Hier kannst du SAL-Screenshots hochladen oder manuell Noten deiner aktuellen Module eintragen.',
+      content: 'Hier kannst du SAL-Screenshots hochladen oder manuell Noten deiner aktuellen Module eintragen.',
       placement: 'bottom',
       title: '📝 EFZ - Aktuell',
       skipScroll: true,
@@ -1816,7 +1882,7 @@ export default function BMGradeCalculator() {
     },
     {
       target: '[data-tour="bm-current"]',
-      content: 'Aktuell: Hier gibst du die Noten (Kontrollen) des laufenden Semesters ein.',
+      content: 'Hier gibst du die Noten des laufenden Semesters ein.',
       placement: 'bottom',
       title: '📝 BM - Aktuell',
       skipScroll: true,
@@ -1869,6 +1935,7 @@ export default function BMGradeCalculator() {
   // ============ Render ============
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
+      <CelebrationBurst activeKey={celebrationKey} />
       <Joyride
         steps={tourSteps}
         run={runTour}
@@ -2363,7 +2430,12 @@ export default function BMGradeCalculator() {
                               currentAverage={apprenticeshipCalculations.getModuleAverage(moduleId)}
                               simulatedAverage={apprenticeshipCalculations.getSimulatedModuleAverage(moduleId)}
                               goalGrade={goal}
-                              onGoalChange={(value) => setModuleGoals({ ...moduleGoals, [moduleId]: value })}
+                              onGoalChange={(value) => {
+                                const roundedGoal = clampHalfStepGoal(value);
+                                if (roundedGoal !== null) {
+                                  setModuleGoals({ ...moduleGoals, [moduleId]: roundedGoal });
+                                }
+                              }}
                               computeRequired={(assumedWeight, target) => calculateRequiredModuleGradeWithPlans(moduleId, goal, assumedWeight, target)}
                             />
                           );
@@ -2496,16 +2568,6 @@ export default function BMGradeCalculator() {
                                       Aktuell
                                     </button>
                                     <button
-                                      onClick={() => {
-                                        setEditingModuleCode(module.code);
-                                        setEditingModuleForm({ code: module.code, name: module.name });
-                                      }}
-                                      className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded text-gray-700"
-                                      title="Modul umbenennen"
-                                    >
-                                      <Edit className="w-4 h-4" />
-                                    </button>
-                                    <button
                                       onClick={() => removeModule(module.code)}
                                       className="p-1.5 bg-red-100 hover:bg-red-200 rounded text-red-700"
                                       title="Modul löschen"
@@ -2632,60 +2694,81 @@ export default function BMGradeCalculator() {
                     <div className="flex flex-wrap gap-3">
                       <div>
                         <label className="block text-xs text-gray-600 mb-1">IPA-Note</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="1"
-                          max="6"
-                          value={ipaGrade ?? ''}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (Number.isFinite(value)) {
-                              setIpaGrade(value);
-                            } else if (e.target.value === '') {
-                              setIpaGrade(null);
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (Number.isFinite(value)) {
-                              const clamped = Math.min(6, Math.max(1, value));
-                              setIpaGrade(clamped);
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="1"
+                            max="6"
+                            value={ipaGrade ?? ''}
+                            onChange={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (Number.isFinite(value)) {
+                                setIpaGrade(value);
+                              } else if (e.target.value === '') {
+                                setIpaGrade(null);
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = parseFloat(e.target.value);
+                              if (Number.isFinite(value)) {
+                                const clamped = Math.min(6, Math.max(1, value));
+                                setIpaGrade(clamped);
+                                triggerCelebration('ipa');
                                 if (user && database.userId && database.setEfzIpa) {
                                   database.setEfzIpa({ grade: clamped, is_final: true }).catch(err => console.warn('Error saving IPA to EFZ DB:', err.message || err));
+                                }
                               }
-                            }
-                          }}
-                          className="w-24 p-2 border border-gray-300 rounded text-sm"
-                        />
+                            }}
+                            className="w-24 p-2 border border-gray-300 rounded text-sm"
+                          />
+                          {Number.isFinite(ipaGrade) && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                setIpaGrade(null);
+                                if (user && database.userId && database.clearEfzFinalIpa) {
+                                  await database.clearEfzFinalIpa().catch(err => console.warn('Error clearing IPA in EFZ DB:', err.message || err));
+                                }
+                              }}
+                              className="p-2 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                              title="IPA-Note löschen"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs text-gray-600 mb-1">Ziel Lehrabschluss</label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="4"
-                          max="6"
-                          value={finalGoal}
-                          onChange={(e) => {
-                            const value = parseFloat(e.target.value);
-                            if (Number.isFinite(value)) setFinalGoal(Math.min(6, Math.max(4, value)));
-                          }}
-                          onBlur={(e) => {
-                            let value = parseFloat(e.target.value);
-                            if (Number.isFinite(value)) {
-                              if (value < 4) value = 4;
-                              if (value > 6) value = 6;
-                              setFinalGoal(value);
-                            }
-                          }}
-                          className="w-24 p-2 border border-gray-300 rounded text-sm"
-                        />
-                      </div>
+                      {!Number.isFinite(ipaGrade) && (
+                        <div>
+                          <label className="block text-xs text-gray-600 mb-1">Ziel Lehrabschluss</label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="4"
+                            max="6"
+                            value={finalGoalInput}
+                            onChange={(e) => {
+                              setFinalGoalInput(e.target.value);
+                            }}
+                            onBlur={(e) => {
+                              if (e.target.value === '') return;
+                              let value = parseFloat(e.target.value);
+                              if (Number.isFinite(value)) {
+                                if (value < 4) value = 4;
+                                if (value > 6) value = 6;
+                                setFinalGoal(value);
+                                setFinalGoalInput(String(value));
+                              }
+                            }}
+                            className="w-24 p-2 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="mt-4 grid md:grid-cols-3 gap-4">
+                  <div className={`mt-4 grid gap-4 ${Number.isFinite(ipaGrade) ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
                     <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
                       <div className="text-xs text-gray-600">Schulteil</div>
                       <div className="text-xl font-bold text-gray-800">{schoolPartAllSemesters?.toFixed(1) || '-'}</div>
@@ -2694,12 +2777,14 @@ export default function BMGradeCalculator() {
                       <div className="text-xs text-gray-600">Lehrabschlussnote</div>
                       <div className="text-xl font-bold text-gray-800">{finalGradeAllSemesters?.toFixed(1) || '-'}</div>
                     </div>
-                    <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
-                      <div className="text-xs text-gray-600">Benötigte IPA-Note</div>
-                      <div className="text-xl font-bold text-gray-800">
-                        {apprenticeshipCalculationsAllSemesters.getRequiredIpaGrade(finalGoal)?.toFixed(2) || '-'}
+                    {!Number.isFinite(ipaGrade) && (
+                      <div className="rounded-lg bg-gray-50 p-3 border border-gray-200">
+                        <div className="text-xs text-gray-600">Benötigte IPA-Note</div>
+                        <div className="text-xl font-bold text-gray-800">
+                          {apprenticeshipCalculationsAllSemesters.getRequiredIpaGrade(finalGoal)?.toFixed(2) || '-'}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2771,7 +2856,12 @@ export default function BMGradeCalculator() {
                           currentAverage={calculations.getSemesterAverage(subject)}
                           simulatedAverage={calculations.getSimulatedSemesterAverage(subject)}
                           goalGrade={goalGrade}
-                          onGoalChange={(goal) => setSubjectGoals({ ...subjectGoals, [subject]: goal })}
+                          onGoalChange={(goal) => {
+                            const roundedGoal = clampHalfStepGoal(goal);
+                            if (roundedGoal !== null) {
+                              setSubjectGoals({ ...subjectGoals, [subject]: roundedGoal });
+                            }
+                          }}
                           computeRequired={(assumedWeight, target) => calculateRequiredGradeWithPlans(subject, goalGrade, assumedWeight, target)}
                         />
                       );
@@ -2912,8 +3002,13 @@ export default function BMGradeCalculator() {
                                             setSemesterGrades(newGrades);
 
                                             // Delete from database if user is logged in
-                                            if (user && database.userId) {
-                                              console.log(`✅ Deleted S${sem} grade for ${subject}`);
+                                            if (user && database.userId && database.removeSemesterGrade) {
+                                              try {
+                                                await database.removeSemesterGrade(subject, parseInt(sem, 10));
+                                                console.log(`✅ Deleted S${sem} grade for ${subject}`);
+                                              } catch (err) {
+                                                console.warn('Error deleting semester grade from DB:', err.message || err);
+                                              }
                                             } else {
                                               console.log(`✅ Deleted S${sem} grade for ${subject} (local only)`);
                                             }
@@ -3190,6 +3285,7 @@ export default function BMGradeCalculator() {
                                       if (Number.isFinite(value)) {
                                         const clamped = Math.min(6, Math.max(1, value));
                                         setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
+                                        triggerCelebration(`bm-${subject}`);
                                         if (user && database.userId && database.setFinalExamGrade) {
                                           await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
                                         }

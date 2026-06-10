@@ -64,3 +64,14 @@ export async function deleteSemesterGrade(id) {
   if (error) throw error;
   return true;
 }
+
+export async function deleteSemesterGradeBySubjectAndSemester(subject_id, semester_number) {
+  const { error } = await supabase
+    .from('semester_grades')
+    .delete()
+    .eq('subject_id', subject_id)
+    .eq('semester_number', semester_number);
+
+  if (error) throw error;
+  return true;
+}
