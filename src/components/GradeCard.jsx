@@ -42,6 +42,14 @@ export default function GradeCard({
   // eslint-disable-next-line no-unused-vars
   const totalWeight = grades.reduce((sum, g) => sum + g.weight, 0);
 
+  const formatGrade = (grade) => {
+    if (!Number.isFinite(grade)) return '-';
+    return grade
+      .toFixed(gradeDecimals)
+      .replace(/(\.\d*?)0+$/, '$1')
+      .replace(/\.$/, '');
+  };
+
   return (
     <div className={`border-2 border-blue-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-indigo-50 overflow-hidden max-w-full ${containerClassName}`}>
       <div className="flex items-center justify-between mb-3">
@@ -81,7 +89,7 @@ export default function GradeCard({
                 key={g.id}
                 className="flex items-center text-xs bg-white rounded p-1.5 sm:p-2 border mb-1 min-w-0"
               >
-                <span className="font-semibold flex-shrink-0">{g.grade.toFixed(gradeDecimals)}</span>
+                <span className="font-semibold flex-shrink-0">{formatGrade(g.grade)}</span>
                 <span className="text-gray-400 hidden sm:inline mx-0.5">×</span>
                 <span className="text-gray-400 hidden sm:inline flex-shrink-0">{g.displayWeight || g.weight}</span>
                 <span className="text-gray-400 hidden sm:inline ml-2 flex-shrink-0 text-xs">{g.date ? `(${g.date})` : ''}</span>
