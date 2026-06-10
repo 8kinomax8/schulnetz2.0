@@ -597,8 +597,20 @@ export default function BMGradeCalculator() {
     return Math.min(max, Math.max(min, Math.round(n * 2) / 2));
   };
 
+  const roundToTenth = (value) => {
+    if (!Number.isFinite(value)) return null;
+    return Math.round((value + Number.EPSILON) * 10) / 10;
+  };
+
   const triggerCelebration = (scope) => {
     setCelebrationKey(`${scope}-${Date.now()}`);
+  };
+
+  const clearIpaGrade = async () => {
+    setIpaGrade(null);
+    if (user && database.userId && database.clearEfzFinalIpa) {
+      await database.clearEfzFinalIpa().catch(err => console.warn('Error clearing IPA in EFZ DB:', err.message || err));
+    }
   };
 
   const clearEfzMessage = () => {
@@ -1692,15 +1704,6 @@ export default function BMGradeCalculator() {
   ];
   const currentSemesterSubjects = getSubjectsForSemester(currentSemester);
 
-  const bmCurrentAverage = (() => {
-    const averages = currentSemesterSubjects
-      .map(subject => calculations.getSemesterAverage(subject))
-      .filter(value => Number.isFinite(value));
-    if (averages.length === 0) return null;
-    const sum = averages.reduce((acc, value) => acc + value, 0);
-    return Math.round((sum / averages.length) * 10) / 10;
-  })();
-
   const bmCurrentExactAverage = (() => {
     const averages = currentSemesterSubjects
       .map(subject => {
@@ -1714,6 +1717,8 @@ export default function BMGradeCalculator() {
     if (averages.length === 0) return null;
     return averages.reduce((acc, value) => acc + value, 0) / averages.length;
   })();
+
+  const bmCurrentAverage = roundToTenth(bmCurrentExactAverage);
 
   const formatAverage = (rounded, exact = null) => {
     if (!Number.isFinite(rounded)) return '-';
@@ -1779,9 +1784,6 @@ export default function BMGradeCalculator() {
     }
   };
 
-  const efzOverallAverage = apprenticeshipCalculationsAllSemesters.getOverallFinalGrade();
-  const efzRawOverallAverage = apprenticeshipCalculationsAllSemesters.getRawOverallFinalGrade();
-
   // For final grade tab: use calculations including ALL semesters
   const modulesAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getModulesAverage();
   const uekAverageAllSemesters = apprenticeshipCalculationsAllSemesters.getUekAverage();
@@ -1796,6 +1798,15 @@ export default function BMGradeCalculator() {
   const getRawModuleAverageAllSemesters = (moduleCode) => {
     return apprenticeshipCalculationsAllSemesters.getRawModuleAverage(moduleCode);
   };
+
+  const efzRawOverviewAverage = (() => {
+    const rawModulesAverage = apprenticeshipCalculationsAllSemesters.getRawModulesAverage();
+    const rawUekAverage = apprenticeshipCalculationsAllSemesters.getRawUekAverage();
+    if (!Number.isFinite(rawModulesAverage)) return null;
+    if (!Number.isFinite(rawUekAverage)) return rawModulesAverage;
+    return (rawModulesAverage * 0.8) + (rawUekAverage * 0.2);
+  })();
+  const efzOverviewAverage = roundToTenth(efzRawOverviewAverage);
 
   const userFirstName = getFirstName(user);
 
@@ -2095,8 +2106,8 @@ export default function BMGradeCalculator() {
                 </div>
                 <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
                   <div className="text-xs text-amber-700 mb-1">Berufsschule</div>
-                  <div className="text-3xl font-bold text-amber-900">{formatAverage(efzOverallAverage, efzRawOverallAverage)}</div>
-                  {(!Number.isFinite(efzOverallAverage)) && (
+                  <div className="text-3xl font-bold text-amber-900">{formatAverage(efzOverviewAverage, efzRawOverviewAverage)}</div>
+                  {(!Number.isFinite(efzOverviewAverage)) && (
                     <div className="text-xs text-amber-600 mt-2">Bitte Noten hinzufügen</div>
                   )}
                 </div>
@@ -2706,7 +2717,7 @@ export default function BMGradeCalculator() {
                               if (Number.isFinite(value)) {
                                 setIpaGrade(value);
                               } else if (e.target.value === '') {
-                                setIpaGrade(null);
+                                clearIpaGrade();
                               }
                             }}
                             onBlur={(e) => {
@@ -2726,10 +2737,7 @@ export default function BMGradeCalculator() {
                             <button
                               type="button"
                               onClick={async () => {
-                                setIpaGrade(null);
-                                if (user && database.userId && database.clearEfzFinalIpa) {
-                                  await database.clearEfzFinalIpa().catch(err => console.warn('Error clearing IPA in EFZ DB:', err.message || err));
-                                }
+                                await clearIpaGrade();
                               }}
                               className="p-2 rounded bg-red-100 text-red-700 hover:bg-red-200"
                               title="IPA-Note löschen"
@@ -2749,11 +2757,16 @@ export default function BMGradeCalculator() {
                             max="6"
                             value={finalGoalInput}
                             onChange={(e) => {
-                              setFinalGoalInput(e.target.value);
+                              const raw = e.target.value;
+                              setFinalGoalInput(raw);
+                              const value = parseFloat(raw.replace(',', '.'));
+                              if (Number.isFinite(value)) {
+                                setFinalGoal(Math.min(6, Math.max(4, value)));
+                              }
                             }}
                             onBlur={(e) => {
                               if (e.target.value === '') return;
-                              let value = parseFloat(e.target.value);
+                              let value = parseFloat(e.target.value.replace(',', '.'));
                               if (Number.isFinite(value)) {
                                 if (value < 4) value = 4;
                                 if (value > 6) value = 6;
@@ -2995,9 +3008,12 @@ export default function BMGradeCalculator() {
                                         if (confirm(`S${sem}-Note für ${subject} löschen?`)) {
                                           const newGrades = { ...semesterGrades };
                                           if (newGrades[subject]) {
-                                            delete newGrades[subject][sem];
-                                            if (Object.keys(newGrades[subject]).length === 0) {
+                                            const subjectSemesterGrades = { ...newGrades[subject] };
+                                            delete subjectSemesterGrades[sem];
+                                            if (Object.keys(subjectSemesterGrades).length === 0) {
                                               delete newGrades[subject];
+                                            } else {
+                                              newGrades[subject] = subjectSemesterGrades;
                                             }
                                             setSemesterGrades(newGrades);
 

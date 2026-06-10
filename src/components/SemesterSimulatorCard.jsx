@@ -69,8 +69,8 @@ export default function SemesterSimulatorCard({
               onChange={(e) => {
                 setGoalInput(e.target.value);
                 const value = parseFloat(e.target.value.replace(',', '.'));
-                if (Number.isFinite(value)) {
-                  onGoalChange(roundToHalfOrWhole(Math.min(6, Math.max(1, value))));
+                if (Number.isFinite(value) && Number.isInteger(value * 2)) {
+                  onGoalChange(Math.min(6, Math.max(1, value)));
                 }
               }}
               onFocus={(e) => e.target.select()}

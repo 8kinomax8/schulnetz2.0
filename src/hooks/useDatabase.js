@@ -302,7 +302,9 @@ export function useDatabase(user) {
     setLoading(true);
     setError(null);
     try {
-      const subject = await ensureSubject(subjectName);
+      const subjects = await subjectService.listSubjects();
+      const subject = subjects.find((entry) => entry.name === subjectName);
+      if (!subject) return true;
       return await semesterGradeService.deleteSemesterGradeBySubjectAndSemester(
         subject.id,
         semester
@@ -314,7 +316,7 @@ export function useDatabase(user) {
     } finally {
       setLoading(false);
     }
-  }, [userId, ensureSubject]);
+  }, [userId]);
 
   // ============================================
   // SEMESTER PLANS
