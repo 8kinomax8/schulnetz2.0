@@ -77,6 +77,7 @@ export const useApprenticeshipCalculations = (
 
     const simulatedAverages = Array.from(moduleIds)
       .map((moduleId) => getSimulatedModuleAverage(moduleId))
+      .map((value) => Number.isFinite(value) ? roundToHalfOrWhole(value) : value)
       .filter((value) => Number.isFinite(value));
 
     return calculateRawModulesAverage(simulatedAverages);
@@ -105,7 +106,7 @@ export const useApprenticeshipCalculations = (
 
   const getRawSchoolPart = () => {
     const modulesAverage = getRawModulesAverage();
-    const uekAverage = getRawUekAverage();
+    const uekAverage = getUekAverage();
     if (!Number.isFinite(modulesAverage) || !Number.isFinite(uekAverage)) return null;
     return (modulesAverage * 0.8) + (uekAverage * 0.2);
   };

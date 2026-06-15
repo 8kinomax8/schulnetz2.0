@@ -1801,10 +1801,10 @@ export default function BMGradeCalculator() {
 
   const efzRawOverviewAverage = (() => {
     const rawModulesAverage = apprenticeshipCalculationsAllSemesters.getRawModulesAverage();
-    const rawUekAverage = apprenticeshipCalculationsAllSemesters.getRawUekAverage();
+    const uekAverage = apprenticeshipCalculationsAllSemesters.getUekAverage();
     if (!Number.isFinite(rawModulesAverage)) return null;
-    if (!Number.isFinite(rawUekAverage)) return rawModulesAverage;
-    return (rawModulesAverage * 0.8) + (rawUekAverage * 0.2);
+    if (!Number.isFinite(uekAverage)) return rawModulesAverage;
+    return (rawModulesAverage * 0.8) + (uekAverage * 0.2);
   })();
   const efzOverviewAverage = roundToTenth(efzRawOverviewAverage);
 
@@ -1999,7 +1999,7 @@ export default function BMGradeCalculator() {
           },
         }}
       />
-      <div className="max-w-7xl mx-auto px-2 sm:px-4">
+      <div className={`${mainTab === 'berufsschule' && ['simulation', 'final'].includes(efzTab) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto px-2 sm:px-4`}>
         {/* Header */}
         <header className="bg-white rounded-2xl shadow-xl px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-gray-100">
           <div className="flex items-start justify-between gap-4">

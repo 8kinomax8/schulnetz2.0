@@ -288,14 +288,14 @@ export const calculateRawModulesAverage = (moduleAverages) => {
  */
 export const calculateModulesAverageFromModules = (modules) => {
   const moduleAverages = Object.values(modules || {})
-    .map((grades) => calculateRawModuleAverage(grades))
+    .map((grades) => calculateModuleAverage(grades))
     .filter((value) => Number.isFinite(value));
   return calculateModulesAverage(moduleAverages);
 };
 
 export const calculateRawModulesAverageFromModules = (modules) => {
   const moduleAverages = Object.values(modules || {})
-    .map((grades) => calculateRawModuleAverage(grades))
+    .map((grades) => calculateModuleAverage(grades))
     .filter((value) => Number.isFinite(value));
   return calculateRawModulesAverage(moduleAverages);
 };
