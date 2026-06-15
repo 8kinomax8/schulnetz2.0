@@ -78,7 +78,7 @@ The SAL typically shows a LIST or TABLE of:
 - Assessment name/title
 - Date of assessment
 - Numeric grade
-- Sometimes weight/importance
+- Weight/importance/Gewichtung when shown
 
 OUTPUT FORMAT (ONLY valid JSON, no text before or after):
 {
@@ -118,8 +118,11 @@ CRITICAL RULES:
    - NEVER round grades. Return exactly the numeric grade visible in the screenshot.
 
 6. WEIGHT:
-   - Optional, default 1
-   - Only if explicitly shown in SAL
+   - Always include the "weight" field for every control.
+   - Extract it from columns or labels such as "Gewichtung", "Gewicht", "Weight", "Faktor", "Pondération", "Coef.", "Koeffizient", "Anteil", or "Wertung".
+   - Preserve decimal/fraction values: "0.5", "1.5", "1/2", "50%" must be converted to numeric weight 0.5, 1.5, 0.5, 0.5.
+   - If SAL shows percentages as importance, convert percent to decimal weight (100% = 1, 50% = 0.5, 200% = 2).
+   - If no weight/importance is visible for that row, use "weight": 1.
 
 7. EXTRACTION COMPLETENESS:
    - Extract EVERY visible row/entry

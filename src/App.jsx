@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Book, Calculator, TrendingUp, Target, GraduationCap, LogOut, ChartNoAxesGantt, Binary, NotebookPen, Edit, X, Check, Camera } from 'lucide-react';
-import { Joyride, STATUS } from 'react-joyride';
+import { Joyride, ACTIONS, STATUS } from 'react-joyride';
 import { BM_SUBJECTS, EXAM_COMPONENTS, EXAM_SUBJECTS, LEKTIONENTAFEL } from './constants';
 import { GradeCard, SemesterSimulatorCard, BulletinAnalysis, PromotionStatus, AuthPanel, OnboardingSetup } from './components';
 import AccountSettings from './components/AccountSettings';
@@ -226,8 +226,8 @@ export default function BMGradeCalculator() {
   const salPasteContainerRef = useRef(null);
 
   const handleJoyrideCallback = async (data) => {
-    const { status } = data;
-    if ([STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
+    const { action, status } = data;
+    if (action === ACTIONS.CLOSE || [STATUS.FINISHED, STATUS.SKIPPED].includes(status)) {
       setRunTour(false);
       localStorage.setItem('schulnetz_tour_completed', 'true');
       setIsTourCompleted(true);
@@ -1008,11 +1008,12 @@ export default function BMGradeCalculator() {
 
         const moduleCode = normalizeModuleCode(rawSubject);
         const moduleName = extractModuleName(rawSubject, control.moduleName || control.module_name || control.module);
+        const extractedWeight = control.weight ?? control.gewichtung ?? control.weighting ?? control.importance ?? 1;
         const wasAdded = await addOrMergeModuleGrade(
           moduleCode,
           moduleName,
           normalizedGrade,
-          control.weight || 1,
+          extractedWeight,
           control.date,
           control.name || 'SAL',
           'import'
@@ -1999,7 +2000,7 @@ export default function BMGradeCalculator() {
           },
         }}
       />
-      <div className={`${mainTab === 'berufsschule' && ['simulation', 'final'].includes(efzTab) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto px-2 sm:px-4`}>
+      <div className="max-w-7xl mx-auto px-2 sm:px-4">
         {/* Header */}
         <header className="bg-white rounded-2xl shadow-xl px-4 py-3 sm:px-6 sm:py-4 mb-4 border border-gray-100">
           <div className="flex items-start justify-between gap-4">
@@ -2097,7 +2098,7 @@ export default function BMGradeCalculator() {
 
           {/* Page 1: Overview */}
           {mainTab === 'overview' && (
-            <div>
+            <div className={showProfileSettings ? 'max-w-5xl mx-auto' : ''}>
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Übersicht und Einstellungen</h2>
               <div className="grid lg:grid-cols-2 gap-6 mb-6">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
