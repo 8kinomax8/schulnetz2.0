@@ -111,7 +111,7 @@ export default function AccountSettings({ user: propUser }) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-6 space-y-6">
+    <div className="w-full mt-6 space-y-6">
 
       {/* Anzeigename ändern */}
       <div className="bg-white rounded-xl shadow-lg p-6">

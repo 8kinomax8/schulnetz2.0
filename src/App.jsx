@@ -18,6 +18,8 @@ import SemesterPrompt from './components/SemesterPrompt';
 import { storage, formatSwissDate } from './utils';
 import { analyzeBulletin } from './services/apiService';
 
+const DATENSCHUTZ_HASH = '#/datenschutz';
+
 const swissDateToSQL = (swissDate) => {
   if (!swissDate || typeof swissDate !== 'string') return '';
 
@@ -47,6 +49,23 @@ const sqlDateToSwiss = (sqlDate) => {
   return `${day}.${month}.${year}`;
 };
 
+const getStaticPageFromHash = (hash) => (
+  hash === DATENSCHUTZ_HASH ? 'datenschutz' : null
+);
+
+const MiniFooter = () => (
+  <footer className="py-6 text-center text-gray-600 text-sm flex-shrink-0">
+    Made with ❤️ and 👾 by Kinomé. © 2025 {' '}
+    <a href={DATENSCHUTZ_HASH} className="text-indigo-600 hover:underline">
+      Datenschutz
+    </a>
+    {' '}·{' '}
+    <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">
+      Probleme oder Feedback
+    </a>
+  </footer>
+);
+
 const AuthBackdrop = ({ children, contentClassName = 'w-full max-w-xl' }) => (
   <div className="relative h-screen flex flex-col items-center justify-center px-4 bg-gradient-to-br from-[#eef2ff] via-[#fdfbff] to-[#e5e4ff]">
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -58,9 +77,91 @@ const AuthBackdrop = ({ children, contentClassName = 'w-full max-w-xl' }) => (
       <div className="flex-grow flex items-center justify-center w-full">
         {children}
       </div>
-      <footer className="py-6 text-center text-gray-600 text-sm flex-shrink-0">
-        Made with ❤️ and 👾 by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
-      </footer>
+      <MiniFooter />
+    </div>
+  </div>
+);
+
+const DatenschutzPage = () => (
+  <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
+    <div className="max-w-4xl mx-auto px-2 sm:px-4">
+      <div className="bg-white rounded-2xl shadow-xl px-5 py-5 sm:px-8 sm:py-7 mb-6 border border-gray-100">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-indigo-700">Schulnetz 2.0</p>
+            <h1 className="text-3xl font-bold text-gray-900 mt-1">Datenschutz</h1>
+            <p className="text-sm text-gray-500 mt-2">Stand: 2. Juli 2026</p>
+          </div>
+          <a
+            href="#/"
+            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            Zur App
+          </a>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-5 sm:p-8 space-y-8">
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Verantwortliche Stelle</h2>
+          <p className="text-gray-700 leading-7">
+            Verantwortlich für die Datenverarbeitung in Schulnetz 2.0 ist Kinome. Bei Fragen zum Datenschutz kannst du dich an
+            {' '}<a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">schulnetz2.0@kinome.one</a>{' '}
+            wenden.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Welche Daten gespeichert werden</h2>
+          <p className="text-gray-700 leading-7">
+            Schulnetz 2.0 speichert nur die Daten, die für die Nutzung der App notwendig sind. Dazu gehören insbesondere dein
+            Benutzerkonto mit E-Mail-Adresse und Anzeigename sowie die von dir erfassten Schul-, BM- und EFZ-Noten,
+            Simulationen, Ziele und zugehörige Eingaben innerhalb der App.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Zweck der Verarbeitung</h2>
+          <p className="text-gray-700 leading-7">
+            Die Daten werden ausschliesslich verwendet, um dir die Funktionen von Schulnetz 2.0 bereitzustellen: Speichern deiner
+            Eingaben, Synchronisation zwischen Geräten, Berechnung von Durchschnitten und Simulationen sowie Verwaltung deines Kontos.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Speicherort und technische Umsetzung</h2>
+          <p className="text-gray-700 leading-7">
+            Die Daten werden mit Supabase gespeichert. Der verwendete Speicherstandort liegt in Zürich, Schweiz. Die Verarbeitung
+            erfolgt über die technische Infrastruktur von Supabase, die für Authentifizierung und Datenbankfunktionen eingesetzt wird.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Weitergabe an Dritte</h2>
+          <p className="text-gray-700 leading-7">
+            Es erfolgt keine Weitergabe deiner Daten zu Werbezwecken. Eine Verarbeitung durch technische Dienstleister findet nur insoweit
+            statt, wie sie für den Betrieb der App notwendig ist, insbesondere durch Supabase als Hosting- und Datenbankanbieter.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Deine Rechte</h2>
+          <p className="text-gray-700 leading-7">
+            Du kannst jederzeit Auskunft über die zu deiner Person gespeicherten Daten verlangen sowie die Berichtigung oder Löschung
+            deiner Daten anfragen. Eine entsprechende Anfrage kannst du über die oben genannte Kontaktadresse stellen.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-xl font-semibold text-gray-900">Änderungen</h2>
+          <p className="text-gray-700 leading-7">
+            Diese Datenschutzerklärung kann angepasst werden, wenn sich Funktionen der App oder die technische Infrastruktur ändern.
+            Massgeblich ist jeweils die auf dieser Seite veröffentlichte Fassung.
+          </p>
+        </section>
+      </div>
+
+      <MiniFooter />
     </div>
   </div>
 );
@@ -131,6 +232,7 @@ const CelebrationBurst = ({ activeKey }) => {
 export default function BMGradeCalculator() {
   const { user, authLoading, signOut } = useAuth();
   const { needsOnboarding, onboardingLoading, completeOnboarding } = useOnboarding(user);
+  const [staticPage, setStaticPage] = useState(() => getStaticPageFromHash(window.location.hash));
 
   // ============ Application state ============
   const [bmType, setBmType] = useState('TAL');
@@ -193,6 +295,15 @@ export default function BMGradeCalculator() {
 
   const [editingModuleCode, setEditingModuleCode] = useState(null);
   const [editingModuleForm, setEditingModuleForm] = useState({ code: '', name: '' });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      setStaticPage(getStaticPageFromHash(window.location.hash));
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // ============ Custom hooks ============
   const validSubjects = new Set(Object.keys(LEKTIONENTAFEL[bmType] || {}));
@@ -363,12 +474,12 @@ export default function BMGradeCalculator() {
         const finalExamsFromDb = {};
         if (exams && exams.length > 0) {
           exams.forEach(e => {
-            const simulatedGrade = parseFloat(e.simulated_grade);
-            const finalGrade = parseFloat(e.final_grade);
-            if (Number.isFinite(simulatedGrade)) {
+            const simulatedGrade = parseTenthGrade(e.simulated_grade);
+            const finalGrade = parseTenthGrade(e.final_grade);
+            if (simulatedGrade !== null) {
               examsFromDb[e.subject_name] = simulatedGrade;
             }
-            if (Number.isFinite(finalGrade)) {
+            if (finalGrade !== null) {
               finalExamsFromDb[e.subject_name] = finalGrade;
             }
           });
@@ -595,6 +706,15 @@ export default function BMGradeCalculator() {
     const n = normalizeNumber(value);
     if (n === null) return null;
     return Math.min(max, Math.max(min, Math.round(n * 2) / 2));
+  };
+
+  const parseTenthGrade = (value, min = 1, max = 6) => {
+    if (value === null || value === undefined || value === '') return null;
+    const raw = String(value).trim().replace(',', '.');
+    if (!/^\d(?:\.\d)?$/.test(raw)) return null;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed < min || parsed > max) return null;
+    return Math.round(parsed * 10) / 10;
   };
 
   const roundToTenth = (value) => {
@@ -1945,6 +2065,10 @@ export default function BMGradeCalculator() {
   ];
 
   // ============ Render ============
+  if (staticPage === 'datenschutz') {
+    return <DatenschutzPage />;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#f8f9ff] via-white to-[#eef2ff] py-6 sm:py-10 px-3">
       <CelebrationBurst activeKey={celebrationKey} />
@@ -2098,7 +2222,7 @@ export default function BMGradeCalculator() {
 
           {/* Page 1: Overview */}
           {mainTab === 'overview' && (
-            <div className={showProfileSettings ? 'max-w-5xl mx-auto' : ''}>
+            <div className="w-full">
               <h2 className="text-2xl font-bold text-gray-800 mb-4">Übersicht und Einstellungen</h2>
               <div className="grid lg:grid-cols-2 gap-6 mb-6">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-4">
@@ -2425,7 +2549,7 @@ export default function BMGradeCalculator() {
               {efzTab === 'simulation' && (
                 <>
                   {efzCurrentModules.length > 0 ? (
-                    <div className="mb-6">
+                    <div className="mb-6 w-full">
                       <h3 className="text-lg font-semibold text-gray-800 mb-3">Modulsimulation</h3>
                       <div className="grid md:grid-cols-2 gap-4">
                         {efzCurrentModules.map(module => {
@@ -2457,7 +2581,7 @@ export default function BMGradeCalculator() {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                    <div className="w-full p-6 bg-blue-50 border border-blue-200 rounded-lg text-center">
                       <p className="text-gray-700 mb-2">Noch keine Module für dieses Semester hinzugefügt.</p>
                       <p className="text-sm text-gray-600">Füge Module unter dem Reiter "Aktuell" hinzu, um sie hier zu simulieren.</p>
                     </div>
@@ -3084,7 +3208,9 @@ export default function BMGradeCalculator() {
                           max="6"
                           value={maturnoteGoal}
                           onChange={async (e) => {
-                            const newGoal = parseFloat(e.target.value);
+                            if (e.target.value === '') return;
+                            const newGoal = parseTenthGrade(e.target.value, 4, 6);
+                            if (newGoal === null) return;
                             setMaturnoteGoal(newGoal);
                             try {
                               if (
@@ -3217,13 +3343,13 @@ export default function BMGradeCalculator() {
                                 <span className="text-xs text-gray-700">Ziel:</span>
                                 <input
                                   type="number"
-                                  step="0.5"
+                                  step="0.1"
                                   min="1"
                                   max="6"
                                   value={subjectGoal}
                                   onChange={(e) => {
-                                    const value = parseFloat(e.target.value);
-                                    if (!isNaN(value) && value >= 1 && value <= 6) {
+                                    const value = parseTenthGrade(e.target.value);
+                                    if (value !== null) {
                                       setExamGoals({ ...examGoals, [subject]: value });
                                     } else if (e.target.value === '') {
                                       setExamGoals(prev => {
@@ -3255,26 +3381,25 @@ export default function BMGradeCalculator() {
                                   <label className="block text-xs text-gray-700 mb-1">{simulatedLabel}</label>
                                   <input
                                     type="number"
-                                    step="0.5"
+                                    step="0.1"
                                     min="1"
                                     max="6"
                                     value={simulatedExamGrade || ''}
                                     disabled={hasDefinitiveExamGrade}
                                     onChange={(e) => {
-                                      const value = parseFloat(e.target.value);
-                                      if (value >= 1 && value <= 6) {
+                                      const value = parseTenthGrade(e.target.value);
+                                      if (value !== null) {
                                         setExamSimulator({ ...examSimulator, [subject]: value });
                                       } else if (e.target.value === '') {
                                         setExamSimulator({ ...examSimulator, [subject]: '' });
                                       }
                                     }}
                                     onBlur={async (e) => {
-                                      const value = parseFloat(e.target.value);
-                                      if (Number.isFinite(value)) {
-                                        const clamped = Math.min(6, Math.max(1, value));
-                                        setExamSimulator({ ...examSimulator, [subject]: clamped });
+                                      const value = parseTenthGrade(e.target.value);
+                                      if (value !== null) {
+                                        setExamSimulator({ ...examSimulator, [subject]: value });
                                         if (user && database.userId && database.setExamGrade) {
-                                          await database.setExamGrade(subject, clamped).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
+                                          await database.setExamGrade(subject, value).catch(err => console.warn('Error saving simulated exam grade:', err.message || err));
                                         }
                                       }
                                     }}
@@ -3289,26 +3414,25 @@ export default function BMGradeCalculator() {
                                   <label className="block text-xs text-gray-700 mb-1">{definitiveLabel}</label>
                                   <input
                                     type="number"
-                                    step="0.5"
+                                    step="0.1"
                                     min="1"
                                     max="6"
                                     value={definitiveExamGrade || ''}
                                     onChange={(e) => {
-                                      const value = parseFloat(e.target.value);
-                                      if (value >= 1 && value <= 6) {
+                                      const value = parseTenthGrade(e.target.value);
+                                      if (value !== null) {
                                         setFinalExamGrades({ ...finalExamGrades, [subject]: value });
                                       } else if (e.target.value === '') {
                                         setFinalExamGrades({ ...finalExamGrades, [subject]: '' });
                                       }
                                     }}
                                     onBlur={async (e) => {
-                                      const value = parseFloat(e.target.value);
-                                      if (Number.isFinite(value)) {
-                                        const clamped = Math.min(6, Math.max(1, value));
-                                        setFinalExamGrades({ ...finalExamGrades, [subject]: clamped });
+                                      const value = parseTenthGrade(e.target.value);
+                                      if (value !== null) {
+                                        setFinalExamGrades({ ...finalExamGrades, [subject]: value });
                                         triggerCelebration(`bm-${subject}`);
                                         if (user && database.userId && database.setFinalExamGrade) {
-                                          await database.setFinalExamGrade(subject, clamped).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
+                                          await database.setFinalExamGrade(subject, value).catch(err => console.warn('Error saving definitive exam grade:', err.message || err));
                                         }
                                       }
                                     }}
@@ -3347,9 +3471,9 @@ export default function BMGradeCalculator() {
         </div>
 
         {/* Footer */}
-        <footer className="mt-8 py-6 text-center text-gray-600 text-sm">
-          Made with ❤️ and 👾 by Kinomé - <a href="mailto:schulnetz2.0@kinome.one" className="text-indigo-600 hover:underline">Probleme oder Feedback</a>
-        </footer>
+        <div className="mt-8">
+          <MiniFooter />
+        </div>
 
         {/* Floating Help Button to Restart Tour */}
         <button
